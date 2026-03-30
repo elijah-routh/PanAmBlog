@@ -17,7 +17,7 @@
     }
 
     .page {
-      max-width: 1100px;
+      max-width: 1300px;
       margin: 24px auto;
       padding: 0 16px 24px;
     }
@@ -32,10 +32,41 @@
       color: #415171;
     }
 
+    .split {
+      display: grid;
+      grid-template-columns: minmax(260px, 360px) 1fr;
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .info-wrap {
+      border: 1px solid #d6deeb;
+      border-radius: 12px;
+      background: #ffffff;
+      box-shadow: 0 8px 20px rgba(14, 37, 79, 0.08);
+      padding: 16px;
+    }
+
+    .info-label {
+      margin: 0 0 8px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: #415171;
+    }
+
     #country-readout {
       min-height: 1.5rem;
-      margin-bottom: 12px;
+      margin: 0 0 12px;
       font-weight: 600;
+      font-size: 1.05rem;
+    }
+
+    #country-details {
+      margin: 0;
+      line-height: 1.45;
+      color: #2e3f60;
     }
 
     .map-wrap {
@@ -49,34 +80,97 @@
     #map-object {
       display: block;
       width: 100%;
-      height: 75vh;
+      height: 78vh;
       min-height: 560px;
       border: 0;
       background: #ffffff;
+    }
+
+    @media (max-width: 900px) {
+      .split {
+        grid-template-columns: 1fr;
+      }
+
+      #map-object {
+        height: 64vh;
+        min-height: 460px;
+      }
     }
   </style>
 </head>
 <body>
   <main class="page">
     <h1>Americas Map</h1>
-    <p class="note">Hover over a country to highlight it.</p>
-    <div id="country-readout">Hover a country...</div>
+    <p class="note">Hover over a country to highlight it and see details on the left. Click a country to zoom.</p>
 
-    <div class="map-wrap">
-      <object
-        id="map-object"
-        data="images/americas-political.svg"
-        type="image/svg+xml"
-        aria-label="Interactive map of the Americas">
-      </object>
+    <div class="split">
+      <aside class="info-wrap" aria-live="polite">
+        <p class="info-label">Country Info</p>
+        <p id="country-readout">Hover a country...</p>
+        <p id="country-details">Move your cursor over the map to display country information here.</p>
+      </aside>
+
+      <div class="map-wrap">
+        <object
+          id="map-object"
+          data="images/americas-political.svg"
+          type="image/svg+xml"
+          aria-label="Interactive map of the Americas">
+        </object>
+      </div>
     </div>
   </main>
 
   <script>
     const mapObject = document.getElementById("map-object");
     const readout = document.getElementById("country-readout");
+    const details = document.getElementById("country-details");
 
     function enhanceSvg(svgRoot) {
+      let selectedCountryId = null;
+      const initialViewBox = svgRoot.viewBox.baseVal;
+      const baseViewBox = {
+        x: initialViewBox.x,
+        y: initialViewBox.y,
+        width: initialViewBox.width,
+        height: initialViewBox.height
+      };
+
+      function setViewBox(box) {
+        svgRoot.setAttribute(
+          "viewBox",
+          `${box.x.toFixed(3)} ${box.y.toFixed(3)} ${box.width.toFixed(3)} ${box.height.toFixed(3)}`
+        );
+      }
+
+      function animateViewBox(target, duration = 280) {
+        const start = svgRoot.viewBox.baseVal;
+        const from = { x: start.x, y: start.y, width: start.width, height: start.height };
+        const startTs = performance.now();
+
+        function step(ts) {
+          const t = Math.min(1, (ts - startTs) / duration);
+          const eased = 1 - Math.pow(1 - t, 3);
+          setViewBox({
+            x: from.x + (target.x - from.x) * eased,
+            y: from.y + (target.y - from.y) * eased,
+            width: from.width + (target.width - from.width) * eased,
+            height: from.height + (target.height - from.height) * eased
+          });
+          if (t < 1) requestAnimationFrame(step);
+        }
+
+        requestAnimationFrame(step);
+      }
+
+      function resetZoom() {
+        selectedCountryId = null;
+        svgRoot.querySelectorAll(".country.is-selected").forEach((node) => {
+          node.classList.remove("is-selected");
+        });
+        animateViewBox(baseViewBox);
+      }
+
       const style = svgRoot.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "style");
       style.textContent = `
         .country {
@@ -89,12 +183,18 @@
           stroke: #1e2a44 !important;
           stroke-width: 1.4 !important;
         }
+        .country.is-selected {
+          fill: #ff9a2f !important;
+          stroke: #0e1a2e !important;
+          stroke-width: 1.6 !important;
+        }
       `;
       svgRoot.appendChild(style);
 
       const countries = svgRoot.querySelectorAll(".country");
       if (!countries.length) {
         readout.textContent = "Loaded SVG, but found no countries to hover.";
+        details.textContent = "The map loaded, but no country paths were found.";
         return;
       }
 
@@ -103,15 +203,73 @@
           country.classList.add("is-hovered");
           const name = country.getAttribute("data-name") || country.id || "Unknown country";
           readout.textContent = `Country: ${name}`;
+          details.textContent = `ID: ${country.id || "N/A"} | Name: ${name}`;
         });
 
         country.addEventListener("mouseleave", () => {
           country.classList.remove("is-hovered");
-          readout.textContent = "Hover a country...";
+          if (!selectedCountryId) {
+            readout.textContent = "Hover a country...";
+            details.textContent = "Move your cursor over the map to display country information here.";
+          }
+        });
+
+        country.addEventListener("click", (evt) => {
+          evt.stopPropagation();
+
+          if (selectedCountryId === country.id) {
+            readout.textContent = "Hover a country...";
+            details.textContent = "Move your cursor over the map to display country information here.";
+            resetZoom();
+            return;
+          }
+
+          selectedCountryId = country.id;
+          svgRoot.querySelectorAll(".country.is-selected").forEach((node) => {
+            node.classList.remove("is-selected");
+          });
+          country.classList.add("is-selected");
+
+          const bbox = country.getBBox();
+          const padding = 24;
+          const box = {
+            x: bbox.x - padding,
+            y: bbox.y - padding,
+            width: bbox.width + padding * 2,
+            height: bbox.height + padding * 2
+          };
+
+          const targetRatio = baseViewBox.width / baseViewBox.height;
+          const boxRatio = box.width / box.height;
+          if (boxRatio > targetRatio) {
+            const neededH = box.width / targetRatio;
+            const grow = neededH - box.height;
+            box.y -= grow / 2;
+            box.height = neededH;
+          } else {
+            const neededW = box.height * targetRatio;
+            const grow = neededW - box.width;
+            box.x -= grow / 2;
+            box.width = neededW;
+          }
+
+          animateViewBox(box);
+          const name = country.getAttribute("data-name") || country.id || "Unknown country";
+          readout.textContent = `Country: ${name}`;
+          details.textContent = `ID: ${country.id || "N/A"} | Name: ${name} | Click again to reset zoom.`;
         });
       });
 
+      svgRoot.addEventListener("click", (evt) => {
+        if (!evt.target.closest(".country")) {
+          readout.textContent = "Hover a country...";
+          details.textContent = "Move your cursor over the map to display country information here.";
+          resetZoom();
+        }
+      });
+
       readout.textContent = "Hover a country...";
+      details.textContent = "Move your cursor over the map to display country information here.";
     }
 
     async function inlineSvgFallback() {
@@ -120,7 +278,7 @@
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const svgText = await resp.text();
         const wrap = mapObject.parentElement;
-        wrap.innerHTML = `<div id="inline-svg" style="width:100%;height:75vh;min-height:560px">${svgText}</div>`;
+        wrap.innerHTML = `<div id="inline-svg" style="width:100%;height:78vh;min-height:560px">${svgText}</div>`;
         const svgRoot = wrap.querySelector("svg");
         if (!svgRoot) throw new Error("No <svg> root found");
         svgRoot.setAttribute("width", "100%");
@@ -129,11 +287,13 @@
         enhanceSvg(svgRoot);
       } catch (e) {
         readout.textContent = "Map loaded, but interactivity is blocked. Serve this page over http:// (not file://).";
+        details.textContent = "Start a local server, then open this page via http://localhost.";
       }
     }
 
     if (location.protocol === "file:") {
       readout.textContent = "Interactivity is blocked on file://. Run a local server and open via http://.";
+      details.textContent = "Tip: from your project folder run: python3 -m http.server 8000";
     }
 
     mapObject.addEventListener("load", () => {
