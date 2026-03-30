@@ -1,0 +1,301 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>FinalHome</title>
+</head>
+	
+	<link rel="stylesheet" href="css/bootstrap.min.css"/>
+	<link rel="stylesheet" href="css/grid.css"/>
+	<link rel="stylesheet" href="css/bootstrap-grid.css"/>
+	<script src="js/bootstrap.bundle.min.js"></script>
+	
+	<style>
+	
+		
+		/*		Responsive Type 	*/
+		html {
+			/*		base font size used for calculations : REM	*/
+			font-size: 16px;
+			
+			/*		alternative : Use viewport width	*/
+			/*			font-size: calc(15px + 0.390625vm)*/
+		}
+		
+		* {
+			background-color: antiquewhite;
+			color:black;
+			font-weight: 600;
+			font-family:"Lucida Grande", "Lucida Sans Unicode", "Lucida Sans", "DejaVu Sans", Verdana, "sans-serif"
+		}
+		
+		.hero {
+			padding: 60px;
+			text-align: center;
+			background-color: #007bff;
+			color: #fff;
+			transition: all 0.3s ease
+		}
+		
+		.heroImage{
+			width: 100%;
+			height: 250px;
+			object-fit: cover;
+			border-bottom-left-radius: 10px;
+			border-bottom-right-radius: 10px;
+		}
+		
+		.banner {
+			position: relative;
+		}
+		
+		.centeredOverlay {
+			position: absolute;
+			top: 50%;
+		 	left: 50%;
+	 		transform: translate(-50%, -50%);
+			color: aliceblue;
+			background-color: transparent;
+		}
+		
+		.authorPhoto{
+			width: 40px;
+			height 40px;
+			background-color: darkgray;
+			float: left;
+			margin-right: 20px;
+			border-radius: 50%;
+		}
+		
+		.asideImage{
+			width: 100%;
+			height: 200px;
+			object-fit: cover;
+			border-radius: 10px;
+		}
+		
+		.contentButton{
+			background-color: grey;
+			margin: 20px;
+			color: white;
+			font-weight: bold;
+			border-radius: 5px;
+			width: 130px;
+			height: 35px;
+			align-content: center;
+			text-align: center;
+		}
+		
+		.contentButton:hover {
+			box-shadow: 0 8px 10px 0 rgba(0,0,0,0,0.4);
+			background-color: black;
+			
+		}
+		
+		/*		LG Screens 			*/
+		@media (min-width: 992px) and (max-width: 1399px) {
+			
+			.hero {
+				padding: 100px;
+			}
+			
+			.hero h1 {
+				font-size: 4rem;
+				/*ALTERNATIVE : font-size: 6vw;*/
+			}
+			
+			.card img {
+				height: 180px;
+				object-fit: cover;
+				object-position: 0% 20%;
+			}
+			
+			.card-title {
+				font-size: 2rem;
+			}
+			
+			.card-text {
+				font-size: 2rem;
+			}
+			
+			.card-container {
+				animation: fadeIn 1s ease;
+			}
+			
+			@keyframes fadeIn {
+				from {
+					opacity: 0;
+					transform: translateY(20px);
+				}
+				to {
+					opacity: 1;
+					transform: translateY(0);
+				}
+			}
+			
+		}
+		
+		/*		MD Screens			*/
+		@media (min-width: 768px) and (max-width: 991px) {
+			.banner {
+				padding: 80px;
+				font-size: 1.5rem;
+				background-color: #0005b;
+			}
+			
+			.card img {
+				height: 180px;
+				object-fit: cover;
+				object-position: 0% 20%;
+			}
+			
+			.card-title {
+				font-size: 1.2rem;
+			}
+			
+			.card-text {
+				font-size: 1.2rem;
+			}
+			
+			.card-container {
+				animation: fadeIn 1s ease;
+			}
+			
+			@keyframes fadeIn {
+				from {
+					opacity: 0;
+					transform: translateY(20px);
+				}
+				to {
+					opacity: 1;
+					transform: translateY(0);
+				}
+			}
+		}
+		
+		/*		SM Screens			*/
+		@media (max-width: 767px) {
+			.hero {
+				padding: 30px;
+				font-size: 1.2rem;
+				background-color: #0100f2;
+			}
+			
+			.card img {
+				height: 150px;
+				object-fit: cover;
+			}
+			
+			.card img:hover {
+				transform: scale(1.05);
+			}
+			
+			.card-text{
+				font-size: 1.2rem;
+			}
+			
+		}
+		
+	</style>
+
+<body>
+	
+	<div class="container-fluid">
+	<!--	Banner SECTION	-->
+		<div class = "row banner"> 
+			<div class="col-sm-12"> 
+			<img class="heroImage" src="images/colca_canyon_wide.jpg">
+			<h1 class="centeredOverlay">WELCOME to the AMAZING page</h1>
+			</div>
+		</div>
+		
+	<!--	MAIN NAV	-->
+		<div class="row">
+			<div class="col-3"></div>
+			<div class="col-2"><a href="FinalHome.html">HOME</a></div>
+			<div class="col-2"><a href="FinalHome.html#blogSection">BLOG</a></div>
+			<div class="col-2"><a href="FinalMap.html">MAP</a></div>
+			<div class="col-3"></div>
+		</div>
+		
+		
+	<!--	MAIN CONTENT	-->
+		<div class="row">
+			
+			<div class="col-sm-12 col-md-6 col-lg-6">
+				
+				<h3>Why Travel</h3>
+				<p>With a puncture protection belt 5 mm thick, you are protected from sharp objects. The wired tire is made from premium quality Nylon which offers long-term use and superior performance in extreme weathers.</p>
+				
+				
+				<div class="asidePhoto">
+					<img src="images/deadhorse.jpg" class="asideImage">
+				</div>
+			</div>
+			
+			<div class="col-sm-12 col-md-6 col-lg-6">
+			<h3>How To Travel</h3>
+				<p>By bicycle! The key features of the Marathon Plus bike touring tires are the 5mm thick Smartguard layer (the puncture protection bit), and the anti-aging sidewall which is designed to prevent cracking when ridden with lower pressure.
+
+With a puncture protection belt 5 mm thick, you are protected from sharp objects. The wired tire is made from premium quality Nylon which offers long-term use and superior performance in extreme weathers.
+
+For me though, the Marathon Plus tires least advertised but best key feature is that they seem to last forever. It's not unusual for cyclists to say they are getting 10,000 kms or more out of a set of Marathon Plus tires.
+
+Providing you swap the rear tire with the front one every month or so when on tour, you may even be able to extend the lifespan of the Schwalbe Marathon Plus tires for longer.</p>
+			</div>
+			
+		</div>
+		
+		
+		
+	<!--	Column One	-->
+		<div class = "row card-container my-5"> 
+			<h3 id="blogSection">Blog Posts</h3>
+			<div class="col-sm-6 col-md-4 col-lg-4"> 
+				<div class="card">
+					<img class="card-img-top" src="images/GrandCanyonIcon.jpg" alt="building">
+					<div class="card-body">
+						<h5 class="card-title">Grand Canyon</h5>
+						<p class="card-text"> Widest.</p>
+						<a href="FinalBlog.html" class="btn btn-primary">Learn More</a>
+					</div>
+				</div>
+			</div>
+			
+		<!--	Column Two	-->
+			<div class="col-sm-6 col-md-4 col-lg-4"> 
+				<div class="card">
+					<img class="card-img-top" src="images/CopperCanyonIcon.jpg" alt="building 2">
+					<div class="card-body">
+						<h5 class="card-title">Copper Canyon</h5>
+						<p class="card-text"> Six Canyons In One.</p>
+						<a href="FinalBlog.html" class="btn btn-primary">Learn More</a>
+					</div>
+				</div>
+			</div>
+			
+		<!--	Column Three	-->
+			<div class="col-sm-6 col-md-4 col-lg-4"> 
+				<div class="card">
+					<img class="card-img-top" src="images/ColcaCanyonIcon.jpg" alt="building 3">
+					<div class="card-body">
+						<h5 class="card-title">Colca Canyon</h5>
+						<p class="card-text"> Deepest.</p>
+						<a href="FinalBlog.html" class="btn btn-primary">Learn More</a>
+					</div>
+				</div>
+			</div>
+		</div>	<!--	End Row		-->
+		
+		<div class="row">
+			<div class="col-sm-12">
+			<footer>
+				2024 TRAVEL
+			</footer>
+			</div>
+		</div>
+		
+	</div>
+	
+</body>
+</html>

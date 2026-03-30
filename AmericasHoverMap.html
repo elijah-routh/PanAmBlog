@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Americas Hover Map</title>
+  <style>
+    :root {
+      color-scheme: light;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f7fb;
+      color: #162238;
+    }
+
+    .page {
+      max-width: 1100px;
+      margin: 24px auto;
+      padding: 0 16px 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.5rem;
+    }
+
+    .note {
+      margin: 0 0 16px;
+      color: #415171;
+    }
+
+    #country-readout {
+      min-height: 1.5rem;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    .map-wrap {
+      border: 1px solid #d6deeb;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #ffffff;
+      box-shadow: 0 8px 20px rgba(14, 37, 79, 0.08);
+    }
+
+    #map-object {
+      display: block;
+      width: 100%;
+      height: 75vh;
+      min-height: 560px;
+      border: 0;
+      background: #ffffff;
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <h1>Americas Map</h1>
+    <p class="note">Hover over a country to highlight it.</p>
+    <div id="country-readout">Hover a country...</div>
+
+    <div class="map-wrap">
+      <object
+        id="map-object"
+        data="images/americas-political.svg"
+        type="image/svg+xml"
+        aria-label="Interactive map of the Americas">
+      </object>
+    </div>
+  </main>
+
+  <script>
+    const mapObject = document.getElementById("map-object");
+    const readout = document.getElementById("country-readout");
+
+    function enhanceSvg(svgRoot) {
+      const style = svgRoot.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "style");
+      style.textContent = `
+        .country {
+          transition: fill 120ms ease-in-out, stroke-width 120ms ease-in-out;
+          cursor: pointer;
+        }
+        .country:hover,
+        .country.is-hovered {
+          fill: #ffb347 !important;
+          stroke: #1e2a44 !important;
+          stroke-width: 1.4 !important;
+        }
+      `;
+      svgRoot.appendChild(style);
+
+      const countries = svgRoot.querySelectorAll(".country");
+      if (!countries.length) {
+        readout.textContent = "Loaded SVG, but found no countries to hover.";
+        return;
+      }
+
+      countries.forEach((country) => {
+        country.addEventListener("mouseenter", () => {
+          country.classList.add("is-hovered");
+          const name = country.getAttribute("data-name") || country.id || "Unknown country";
+          readout.textContent = `Country: ${name}`;
+        });
+
+        country.addEventListener("mouseleave", () => {
+          country.classList.remove("is-hovered");
+          readout.textContent = "Hover a country...";
+        });
+      });
+
+      readout.textContent = "Hover a country...";
+    }
+
+    async function inlineSvgFallback() {
+      try {
+        const resp = await fetch("images/americas-political.svg", { cache: "no-store" });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const svgText = await resp.text();
+        const wrap = mapObject.parentElement;
+        wrap.innerHTML = `<div id="inline-svg" style="width:100%;height:75vh;min-height:560px">${svgText}</div>`;
+        const svgRoot = wrap.querySelector("svg");
+        if (!svgRoot) throw new Error("No <svg> root found");
+        svgRoot.setAttribute("width", "100%");
+        svgRoot.setAttribute("height", "100%");
+        svgRoot.setAttribute("preserveAspectRatio", "xMidYMid meet");
+        enhanceSvg(svgRoot);
+      } catch (e) {
+        readout.textContent = "Map loaded, but interactivity is blocked. Serve this page over http:// (not file://).";
+      }
+    }
+
+    if (location.protocol === "file:") {
+      readout.textContent = "Interactivity is blocked on file://. Run a local server and open via http://.";
+    }
+
+    mapObject.addEventListener("load", () => {
+      const svgDoc = mapObject.contentDocument;
+      const svgRoot = svgDoc?.documentElement;
+      if (!svgRoot) {
+        inlineSvgFallback();
+        return;
+      }
+      enhanceSvg(svgRoot);
+    });
+
+    mapObject.addEventListener("error", () => {
+      inlineSvgFallback();
+    });
+  </script>
+</body>
+</html>

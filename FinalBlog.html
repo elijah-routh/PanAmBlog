@@ -1,0 +1,332 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>FinalBlog</title>
+</head>
+	
+	<link rel="stylesheet" href="css/bootstrap.min.css"/>
+	<link rel="stylesheet" href="css/grid.css"/>
+	<link rel="stylesheet" href="css/bootstrap-grid.css"/>
+	<script src="js/bootstrap.bundle.min.js"></script>
+	
+	<style>
+	
+		
+		/*		Responsive Type 	*/
+		html {
+			/*		base font size used for calculations : REM	*/
+			font-size: 16px;
+			
+			/*		alternative : Use viewport width	*/
+			/*			font-size: calc(15px + 0.390625vm)*/
+		}
+		
+		* {
+			background-color: antiquewhite;
+			color:black;
+			font-weight: 600;
+			font-family:"Lucida Grande", "Lucida Sans Unicode", "Lucida Sans", "DejaVu Sans", Verdana, "sans-serif"
+		}
+		
+		.hero {
+			padding: 60px;
+			text-align: center;
+			background-color: #007bff;
+			color: #fff;
+			transition: all 0.3s ease
+		}
+		
+		.heroImage{
+			width: 100%;
+			height: 250px;
+			object-fit: cover;
+			border-bottom-left-radius: 10px;
+			border-bottom-right-radius: 10px;
+		}
+		
+		.banner {
+			position: relative;
+		}
+		
+		.centeredOverlay {
+			position: absolute;
+			top: 50%;
+		 	left: 50%;
+	 		transform: translate(-50%, -50%);
+			color: aliceblue;
+			background-color: transparent;
+		}
+		
+		.authorPhoto{
+			width: 40px;
+			height 40px;
+			background-color: darkgray;
+			float: left;
+			margin-right: 20px;
+			border-radius: 50%;
+		}
+		
+		.pocketGallery {
+			width: 100%;        
+			object-fit: cover;  
+			border-radius: 10px;
+			margin: 5px;
+			display: inline-block;
+		}
+
+		
+		.asideImage{
+			width: 100%;
+			height: 200px;
+			object-fit: cover;
+			border-radius: 10px;
+		}
+		
+		.contentButton{
+			background-color: grey;
+			margin: 20px;
+			color: white;
+			font-weight: bold;
+			border-radius: 5px;
+			width: 130px;
+			height: 35px;
+			align-content: center;
+			text-align: center;
+		}
+		
+		.contentButton:hover {
+			box-shadow: 0 8px 10px 0 rgba(0,0,0,0,0.4);
+			background-color: black;
+			
+		}
+		
+		/*		LG Screens 			*/
+		@media (min-width: 992px) and (max-width: 1399px) {
+			
+			.hero {
+				padding: 100px;
+			}
+			
+			.hero h1 {
+				font-size: 4rem;
+				/*ALTERNATIVE : font-size: 6vw;*/
+			}
+			
+			.card img {
+				height: 180px;
+				object-fit: cover;
+				object-position: 0% 20%;
+			}
+			
+			.card-title {
+				font-size: 2rem;
+			}
+			
+			.card-text {
+				font-size: 2rem;
+			}
+			
+			.card-container {
+				animation: fadeIn 1s ease;
+			}
+			
+			@keyframes fadeIn {
+				from {
+					opacity: 0;
+					transform: translateY(20px);
+				}
+				to {
+					opacity: 1;
+					transform: translateY(0);
+				}
+			}
+			
+			.pocketGallery {
+				width: 45%;        
+			}
+			
+		}
+		
+		/*		MD Screens			*/
+		@media (min-width: 768px) and (max-width: 991px) {
+			.banner {
+				padding: 80px;
+				font-size: 1.5rem;
+				background-color: #0005b;
+			}
+			
+			.card img {
+				height: 180px;
+				object-fit: cover;
+				object-position: 0% 20%;
+			}
+			
+			.card-title {
+				font-size: 1.2rem;
+			}
+			
+			.card-text {
+				font-size: 1.2rem;
+			}
+			
+			.card-container {
+				animation: fadeIn 1s ease;
+			}
+			
+			@keyframes fadeIn {
+				from {
+					opacity: 0;
+					transform: translateY(20px);
+				}
+				to {
+					opacity: 1;
+					transform: translateY(0);
+				}
+			}
+		}
+		
+		/*		SM Screens			*/
+		@media (max-width: 767px) {
+			.hero {
+				padding: 30px;
+				font-size: 1.2rem;
+				background-color: #0100f2;
+			}
+			
+			.card img {
+				height: 150px;
+				object-fit: cover;
+			}
+			
+			.card img:hover {
+				transform: scale(1.05);
+			}
+			
+			.card-text{
+				font-size: 1.2rem;
+			}
+			
+			.pocketGallery {
+				width: 31%;
+				margin: 2px;
+			}
+			
+		}
+		
+	</style>
+
+<body>
+	
+	<div class="container-fluid">
+	<!--	Banner SECTION	-->
+		<div class = "row banner"> 
+			<div class="col-sm-12"> 
+			<img class="heroImage" src="images/colca_canyon_wide.jpg">
+			<h1 class="centeredOverlay">Colca Canyon</h1>
+			</div>
+		</div>
+		
+	<!--	MAIN NAV	-->
+		<div class="row">
+			<div class="col-3"></div>
+			<div class="col-2"><a href="FinalHome.html">HOME</a></div>
+			<div class="col-2"><a href="FinalBlog.html">BLOG</a></div>
+			<div class="col-2"><a href="FinalMap.html">MAP</a></div>
+			<div class="col-3"></div>
+		</div>
+		
+		
+	<!--	MAIN CONTENT	-->
+		<div class="row">
+			
+			<div class="col-sm-12 col-md-8 col-lg-8">
+				<h3>Description</h3>
+				
+				<p> Colca Canyon in Peru is famed for its exceptional depth—reaching about 3,270 meters, making it one of the deepest canyons on Earth. Its landscape blends volcanic and sedimentary formations and is lined with ancient agricultural terraces that showcase centuries of Andean engineering. Visitors are drawn to its soaring Andean condors, traditional highland villages, and the immersive cultural atmosphere found throughout the region. Although it’s reachable from Arequipa, exploring Colca Canyon typically involves trekking or organized bus tours, making it especially appealing to travelers who enjoy a mix of nature, culture, and challenging hikes. </p> <p> Lorem ipsum dolor sit amet consectetur adipiscing elit. Quisque faucibus ex sapien vitae pellentesque sem placerat. In id cursus mi pretium tellus duis convallis. Tempus leo eu aenean sed diam urna tempor. Pulvinar vivamus fringilla lacus nec metus bibendum egestas. Iaculis massa nisl malesuada lacinia integer nunc posuere. Ut hendrerit semper vel class aptent taciti sociosqu. Ad litora torquent per conubia nostra inceptos himenaeos. </p> <p> Lorem ipsum dolor sit amet consectetur adipiscing elit. Quisque faucibus ex sapien vitae pellentesque sem placerat. In id cursus mi pretium tellus duis convallis. Tempus leo eu aenean sed diam urna tempor. Pulvinar vivamus fringilla lacus nec metus bibendum egestas. Iaculis massa nisl malesuada lacinia integer nunc posuere. Ut hendrerit semper vel class aptent taciti sociosqu. Ad litora torquent per conubia nostra inceptos himenaeos. </p> 
+				
+				<h3>Condors</h3>
+				<p> Lorem ipsum dolor sit amet consectetur adipiscing elit. Quisque faucibus ex sapien vitae pellentesque sem placerat. In id cursus mi pretium tellus duis convallis. Tempus leo eu aenean sed diam urna tempor. Pulvinar vivamus fringilla lacus nec metus bibendum egestas. Iaculis massa nisl malesuada lacinia integer nunc posuere. Ut hendrerit semper vel class aptent taciti sociosqu. Ad litora torquent per conubia nostra inceptos himenaeos. </p> <p> Lorem ipsum dolor sit amet consectetur adipiscing elit. Quisque faucibus ex sapien vitae pellentesque sem placerat. In id cursus mi pretium tellus duis convallis. Tempus leo eu aenean sed diam urna tempor. Pulvinar vivamus fringilla lacus nec metus bibendum egestas. Iaculis massa nisl malesuada lacinia integer nunc posuere. Ut hendrerit semper vel class aptent taciti sociosqu. Ad litora torquent per conubia nostra inceptos himenaeos. </p>
+				
+				
+				<div class="accordion" id="faq">
+
+				  <div class="accordion-item">
+					<h2 class="accordion-header" id="heading1">
+					  <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse1" aria-expanded="true" aria-controls="collapse1">
+						What should I pack?
+					  </button>
+					</h2>
+					<div id="collapse1" class="accordion-collapse collapse show" aria-labelledby="heading1" data-bs-parent="#faq">
+					  <div class="accordion-body">
+						Bring layers, water filter, and sturdy boots.
+					  </div>
+					</div>
+				  </div>
+
+				  <div class="accordion-item">
+					<h2 class="accordion-header" id="heading2">
+					  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse2" aria-expanded="false" aria-controls="collapse2">
+						What is the best time to go?
+					  </button>
+					</h2>
+					<div id="collapse2" class="accordion-collapse collapse" aria-labelledby="heading2" data-bs-parent="#faq">
+					  <div class="accordion-body">
+						Spring time.
+					  </div>
+					</div>
+				  </div>
+
+				</div>
+				
+			</div>
+			
+			<div class="col-sm-12 col-md-4 col-lg-4">
+				<h3>About Me</h3>
+					<p> I spend too much time on google maps</p>
+				<h3>Pictures</h3>
+					<div>
+						<img src="images/ColcaCanyonIcon.jpg" class="pocketGallery">
+						<img src="images/ColcaCanyonIcon.jpg" class="pocketGallery">
+						<img src="images/ColcaCanyonIcon.jpg" class="pocketGallery">
+					</div>
+				<h3>Similar Posts</h3>
+					<div> 
+						<div class="card">
+							<img class="card-img-top" src="images/GrandCanyonIcon.jpg" alt="building">
+							<div class="card-body">
+								<h5 class="card-title">Grand Canyon</h5>
+								<a href="FinalBlog.html" class="btn btn-primary">Learn More</a>
+							</div>
+						</div>
+					</div>
+
+					<div> 
+						<div class="card">
+							<img class="card-img-top" src="images/CopperCanyonIcon.jpg" alt="building 2">
+							<div class="card-body">
+								<h5 class="card-title">Copper Canyon</h5>
+								<a href="FinalBlog.html" class="btn btn-primary">Learn More</a>
+							</div>
+						</div>
+					</div>
+				
+			</div>
+			
+			
+		</div>
+		
+		
+		
+		<div class="row">
+			<div class="col-sm-12">
+			<footer>
+				2024 TRAVEL
+			</footer>
+			</div>
+		</div>
+		
+	</div>
+	
+</body>
+</html>

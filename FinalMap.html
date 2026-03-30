@@ -1,0 +1,322 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>FinalMap</title>
+
+<link rel="stylesheet" href="css/bootstrap.min.css"/>
+<link rel="stylesheet" href="css/grid.css"/>
+<link rel="stylesheet" href="css/bootstrap-grid.css"/>
+<script src="js/bootstrap.bundle.min.js"></script>
+
+<style>
+    /* Show GRID */
+    div.col, div.col-1, div.col-2, div.col-3, div.col-4, div.col-5, div.col-6, div.col-7, div.col-8, div.col-9, div.col-10, div.col-11, div.col-12 {
+        padding-top: .75rem;
+        padding-bottom: .75rem;
+    }
+
+    *{
+        font-family: Gotham, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+
+    body{
+        background-color: skyblue;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center bottom;
+    }
+
+    .stickMap {
+        width: 100%;
+        position: sticky;
+        top: 0;
+    }
+
+    .spacerDiv {
+        height: 40px;
+    }
+
+    .cardColumn {
+        width: 100%;
+        margin-top: 10px;
+    }
+
+    .footList {
+        text-align: center;
+    }
+
+    .Title {
+        text-align: center;
+        font-weight: bold;
+    }
+
+    .mapContainer {
+        position: sticky;
+        top: 0;
+        width: 100%;
+        display: inline-block;
+    }
+
+    .pinOverlay {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 18px;
+        height: 18px;
+        background-color: red;
+        border-radius: 50%;
+        border: 2px solid white;
+        box-shadow: 0 0 6px rgba(0,0,0,0.25);
+        z-index: 10;
+        pointer-events: auto; 
+    }
+
+    #smallCard { 
+        transition: width 250ms ease; 
+        z-index: 1000;
+    }
+
+    /* LG Screens */
+    @media (min-width: 992px) and (max-width: 1399px) {
+    }
+
+    /* MD Screens */
+    @media (min-width: 768px) and (max-width: 991px) {
+        #mapCardsRow { display: flex; flex-direction: column; }
+        #mapCardsRow > .col-5, #mapCardsRow > .col-7 { width: 100% !important; max-width: 100% !important; }
+        #mapCardsRow > .col-5 { order: -1; }
+        .mapContainer { position: relative; top: auto; }
+        .mapContainer .stickMap { width: 100%; height: auto; }
+    }
+
+    /* SM Screens */
+    @media (max-width: 767px) {
+        #mapCardsRow { display: flex; flex-direction: column; }
+        #mapCardsRow > .col-5, #mapCardsRow > .col-7 { width: 100% !important; max-width: 100% !important; }
+        #mapCardsRow > .col-5 { order: -1; }
+        .mapContainer { position: relative; top: auto; }
+        .mapContainer .stickMap { width: 100%; height: auto; }
+    }
+
+    /* Stack the map on top of the cards for small and medium screens.
+       We only target the specific row with id="mapCardsRow" so other rows are unaffected. */
+</style>
+
+<script>
+    function expandCard() {
+        const smallCard = document.getElementById("smallCard");
+        smallCard.style.width = '1000px';
+    }
+
+    function shrinkCard() {
+        const smallCard2 = document.getElementById("smallCard2");
+        smallCard2.style.width = '40%';
+    }
+
+    function newCard() {
+        const newImg = document.getElementById("newImg");
+        const newText = document.getElementById("newText");
+        newImg.src = "images/Arch_Los_Cabos.jpg";
+        newText.textContent = "Bike the Baja Cape Loop! A shorter, 280 mile loop that circles Sierra de la Laguna.";
+    }
+
+    function changePin(left, top, tooltipText) {
+        const pin = document.getElementById("pin");
+        pin.style.left = left + "%";
+        pin.style.top = top + "%";
+        pin.setAttribute("data-bs-original-title", tooltipText);
+        bootstrap.Tooltip.getInstance(pin)?.update();
+    }
+
+    function newBackground() {
+        document.body.style.backgroundImage = "url('images/fin-del-mundo.jpg')";
+    }
+
+    const vistas = [
+        { title: 'DeadHorse', img: 'images/deadhorse.jpg', blurb: 'The oil town at the start of the journey' },
+        { title: 'Los Cabos', img: 'images/Arch_Los_Cabos.jpg', blurb: 'Bike the Baja Cape Loop! A shorter, 280 mile loop.' },
+        { title: 'Ushuaia', img: 'images/fin-del-mundo.jpg', blurb: 'The town at the end of the world.' }
+    ];
+
+    let currentVista = 0;
+
+    function cycleVistas() {
+        currentVista++;
+        if (currentVista >= vistas.length) currentVista = 0;
+        const cycleCard = vistas[currentVista];
+        document.getElementById('vistaImg').src = cycleCard.img;
+        document.getElementById('vistaTitle').textContent = cycleCard.title;
+        document.getElementById('vistaText').textContent = cycleCard.blurb;
+    }
+
+    function createCard() {
+        const cardColumn = document.createElement("div");
+        cardColumn.className = "cardColumn";
+
+        const card = document.createElement("div");
+        card.className = "card";
+
+        const img = document.createElement("img");
+        img.src = "images/rose.jpg";
+        img.className = "card-img-top";
+        img.alt = "New Destination";
+
+        const cardBody = document.createElement("div");
+        cardBody.className = "card-body";
+
+        const title = document.createElement("h5");
+        title.className = "card-title";
+        title.textContent = "New Destination";
+
+        const text = document.createElement("p");
+        text.className = "card-text";
+        text.textContent = "More scenic routes across the Americas";
+
+        cardBody.appendChild(title);
+        cardBody.appendChild(text);
+        card.appendChild(img);
+        card.appendChild(cardBody);
+        cardColumn.appendChild(card);
+
+        const container = document.getElementById("destinations");
+        container.appendChild(cardColumn);
+    }
+
+    // Keyboard shortcuts for map navigation
+    document.addEventListener('keydown', (e) => {
+        const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : null;
+        if (tag === 'input' || tag === 'textarea') return;
+
+        const key = e.key.toLowerCase();
+        const mapKeys = {
+            'a': { x: 19, y: 8, name: 'Alaska' },
+            'b': { x: 19, y: 42, name: 'Baja California' },
+            'p': { x: 56, y: 96, name: 'Patagonia' }
+        };
+
+        if (mapKeys[key]) {
+            const dest = mapKeys[key];
+            changePin(dest.x, dest.y, dest.name);
+            showKeyFeedback('Jumped to ' + dest.name + ' (' + key.toUpperCase() + ')');
+        }
+    });
+
+    function showKeyFeedback(message) {
+        let fb = document.getElementById('keyFeedback');
+        if (!fb) {
+            fb = document.createElement('div');
+            fb.id = 'keyFeedback';
+            fb.setAttribute('aria-live', 'polite');
+            fb.style.position = 'fixed';
+            fb.style.right = '12px';
+            fb.style.bottom = '12px';
+            fb.style.padding = '8px 12px';
+            fb.style.background = 'rgba(255,255,255,0.95)';
+            fb.style.border = '1px solid rgba(0,0,0,0.08)';
+            fb.style.borderRadius = '6px';
+            fb.style.boxShadow = '0 6px 14px rgba(0,0,0,0.12)';
+            fb.style.zIndex = 2000;
+            document.body.appendChild(fb);
+        }
+        fb.textContent = message;
+        fb.style.display = 'block';
+        if (fb._timeout) clearTimeout(fb._timeout);
+        fb._timeout = setTimeout(()=> fb.style.display = 'none', 1400);
+    }
+
+    // Initialize Bootstrap tooltips
+    document.addEventListener('DOMContentLoaded', () => {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(el => new bootstrap.Tooltip(el));
+    });
+</script>
+</head>
+
+<body>
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="Title">MAP</h1>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-3"></div>
+        <div class="col-2"><a href="FinalHome.html">HOME</a></div>
+        <div class="col-2"><a href="FinalBlog.html">BLOG</a></div>
+        <div class="col-2"><a href="FinalMap.html">MAP</a></div>
+        <div class="col-3"></div>
+    </div>
+
+    <div class="row">
+        <h2>Vistas</h2>
+    </div>
+
+    <div class="row" id="mapCardsRow">
+        <!-- Cards Column -->
+        <div class="col-7" id="destinations">
+
+            <div class="cardColumn">
+                <div class="card" id="smallCard">
+                    <img src="images/Dalton-Highway.jpg" class="card-img-top" alt="Dalton Highway">
+                    <div class="card-body">
+                        <h5 class="card-title">Alaska</h5>
+                        <p class="card-text">Start in the Arctic Circle and ride the oil highway.</p>
+                        <button class="btn btn-secondary" onclick="changePin(19, 8, 'Alaska — The Arctic Start')">learn more</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cardColumn">
+                <div class="card">
+                    <img src="images/Baja-Road.jpg" class="card-img-top" id="vistaImg" alt="Baja road">
+                    <div class="card-body">
+                        <h5 class="card-title" id="vistaTitle">Baja California</h5>
+                        <p class="card-text" id="vistaText">Big tires needed for deep sand.</p>
+                        <button class="btn btn-secondary" onclick="cycleVistas(); changePin(19, 42, 'Baja California — Desert Riding');">learn more</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cardColumn">
+                <div class="card">
+                    <div class="card-body">
+                        <p>The Darién Gap is a remote, roadless, and dangerous area of rainforest... </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cardColumn">
+                <div class="card" id="smallCard2">
+                    <img src="images/Patagonia-Road.jpg" class="card-img-top" alt="Patagonia road">
+                    <div class="card-body">
+                        <h5 class="card-title">Patagonia</h5>
+                        <p class="card-text">"The end of the world"</p>
+                        <button class="btn btn-secondary" onclick="changePin(56, 96, 'Patagonia — End of the World');">learn more</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Map Column -->
+        <div class="col-5">
+            <div class="mapContainer">
+                <img src="images/Americas-Political-Map.jpg" class="stickMap" alt="Map of the Americas">
+                <div class="pinOverlay" id="pin" data-bs-toggle="tooltip" title="Map pin — click for details" role="img"></div>
+            </div>
+        </div>
+
+        <button class="btn btn-primary" onclick="createCard()">Add New Card</button>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <p class="footList">Elijah Routh<br>2025</p>
+        </div>
+    </div>
+</div>
+</body>
+</html>
