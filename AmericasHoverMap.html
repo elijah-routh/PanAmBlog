@@ -2,39 +2,54 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Americas Hover Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="css/bootstrap.min.css"/>
+  <link rel="stylesheet" href="css/grid.css"/>
+  <link rel="stylesheet" href="css/bootstrap-grid.css"/>
+  <script src="js/bootstrap.bundle.min.js"></script>
   <style>
-    :root { color-scheme: light; }
-    body { margin: 0; font-family: Arial, sans-serif; background: #f4f7fb; color: #162238; }
-    .page { max-width: 1300px; margin: 24px auto; padding: 0 16px 24px; }
-    h1 { margin: 0 0 8px; font-size: 1.5rem; }
-    .note { margin: 0 0 16px; color: #415171; }
-    .split { display: grid; grid-template-columns: minmax(260px, 360px) 1fr; gap: 16px; align-items: stretch; }
-    .info-wrap { border: 1px solid #d6deeb; border-radius: 12px; background: #fff; box-shadow: 0 8px 20px rgba(14, 37, 79, 0.08); padding: 16px; }
-    .info-label { margin: 0 0 8px; font-size: 0.9rem; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: #415171; }
-    #country-readout { min-height: 1.5rem; margin: 0 0 12px; font-weight: 600; font-size: 1.05rem; }
-    #country-details { margin: 0; line-height: 1.45; color: #2e3f60; }
-    .map-wrap { border: 1px solid #d6deeb; border-radius: 12px; overflow: hidden; background: #fff; box-shadow: 0 8px 20px rgba(14, 37, 79, 0.08); }
-    #map-object { display: block; width: 100%; height: 78vh; min-height: 560px; border: 0; background: #fff; }
-    @media (max-width: 900px) { .split { grid-template-columns: 1fr; } #map-object { height: 64vh; min-height: 460px; } }
+    body { background-color: #f4f7fb; }
+    .map-card object, .map-card #inline-svg {
+      display: block;
+      width: 100%;
+      height: 78vh;
+      min-height: 560px;
+      border: 0;
+      background: #fff;
+    }
+    @media (max-width: 900px) {
+      .map-card object, .map-card #inline-svg { height: 64vh; min-height: 460px; }
+    }
   </style>
 </head>
 <body>
-  <main class="page">
-    <h1>Americas Map</h1>
-    <p class="note">Click anywhere in the Caribbean area (no outline) or a country to zoom. Click ocean to zoom out.</p>
-    <div class="split">
-      <aside class="info-wrap" aria-live="polite">
-        <p class="info-label">Country Info</p>
-        <p id="country-readout">Hover a country...</p>
-        <p id="country-details">Move your cursor over the map to display country information here.</p>
-      </aside>
-      <div class="map-wrap">
-        <object id="map-object" data="images/americas-political.svg" type="image/svg+xml" aria-label="Americas map"></object>
+  <div class="container py-4">
+    <div class="row mb-3">
+      <div class="col">
+        <h1 class="h3 mb-1">Americas Map</h1>
+        <p class="text-muted small mb-0">Click the Caribbean highlight or any country to zoom. Click ocean to reset.</p>
       </div>
     </div>
-  </main>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <h2 class="card-title h6 text-uppercase text-muted mb-2">Country Info</h2>
+            <p id="country-readout" class="fw-semibold mb-2">Hover a country...</p>
+            <p id="country-details" class="mb-0 small text-secondary">Move your cursor over the map to display country information here.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-8">
+        <div class="card shadow-sm h-100 map-card">
+          <div class="card-body p-0">
+            <object id="map-object" data="images/americas-political.svg" type="image/svg+xml" aria-label="Americas map"></object>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
   <script>
     const mapObject = document.getElementById("map-object");
     const readout = document.getElementById("country-readout");
@@ -99,6 +114,12 @@
         animateViewBox(box);
       }
 
+      function bringToFront(el) {
+        if (!el || !el.parentNode) return;
+        // Move the element to the end of its parent so it renders above neighbors.
+        el.parentNode.appendChild(el);
+      }
+
       var hotspot = svgRoot.querySelector("#caribbean-hotspot");
       function hotspotPointer(on) {
         if (hotspot) hotspot.setAttribute("pointer-events", on ? "all" : "none");
@@ -123,6 +144,7 @@
       if (hotspot) {
         hotspot.addEventListener("mouseenter", function () {
           if (selectedZoomId) return;
+          bringToFront(hotspot);
           readout.textContent = "Caribbean region";
           details.textContent = "Click to zoom (same image, viewBox only).";
         });
@@ -141,6 +163,7 @@
           }
           selectedZoomId = "caribbean";
           svgRoot.querySelectorAll(".country.is-selected").forEach(function (n) { n.classList.remove("is-selected"); });
+          bringToFront(hotspot);
           hotspot.classList.add("is-selected");
           zoomToElement(hotspot, 42, 0.55);
           hotspotPointer(false);
@@ -156,6 +179,7 @@
       }
       countries.forEach(function (c) {
         c.addEventListener("mouseenter", function () {
+          bringToFront(c);
           c.classList.add("is-hovered");
           var name = c.getAttribute("data-name") || c.id || "?";
           var sub = c.getAttribute("data-subregion");
@@ -179,6 +203,7 @@
           }
           selectedZoomId = c.id;
           svgRoot.querySelectorAll(".country.is-selected").forEach(function (n) { n.classList.remove("is-selected"); });
+          bringToFront(c);
           c.classList.add("is-selected");
           if (hotspot) {
             hotspot.classList.remove("is-selected");
@@ -195,7 +220,7 @@
         if (ev.target.closest && ev.target.closest(".map-hotspot")) return;
         if (!ev.target.closest || !ev.target.closest(".country")) {
           readout.textContent = "Hover a country...";
-          details.textContent = "Move your cursor over the map.";
+          details.textContent = "Move your.cursor over the map.";
           resetZoom();
         }
       });

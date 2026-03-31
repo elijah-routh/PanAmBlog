@@ -4,7 +4,7 @@
   <defs>
     <style type="text/css"><![CDATA[
       .ocean { fill: #ffffff; }
-      .country { fill: #b9b9b9; stroke: #ffffff; stroke-width: 0.75; vector-effect: non-scaling-stroke; }
+      .country { fill: #b9b9b9; stroke: #ffffff; stroke-width: 1.15; vector-effect: non-scaling-stroke; }
       .map-hotspot {
         fill: rgba(30, 120, 200, 0.12);
         stroke: rgba(25, 95, 175, 0.85);
