@@ -8,8 +8,8 @@ import urllib.request
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_DIR = os.path.join(REPO_ROOT, "data")
 GEOJSON_PATH = os.path.join(DATA_DIR, "ne_50m_admin_0_countries.geojson")
-OUT_ALASKA = os.path.join(REPO_ROOT, "images", "alaska.svg")
-OUT_HAWAII = os.path.join(REPO_ROOT, "images", "hawaii.svg")
+OUT_ALASKA = os.path.join(REPO_ROOT, "images", "SVG", "alaska.svg")
+OUT_HAWAII = os.path.join(REPO_ROOT, "images", "SVG", "hawaii.svg")
 
 GEOJSON_URL = (
     "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/"

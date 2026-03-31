@@ -8,11 +8,16 @@ import urllib.request
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_DIR = os.path.join(REPO_ROOT, "data")
 GEOJSON_PATH = os.path.join(DATA_DIR, "ne_50m_admin_0_countries.geojson")
-OUT_SVG_PATH = os.path.join(REPO_ROOT, "images", "americas-political.svg")
+GEOJSON_MAP_UNITS_PATH = os.path.join(DATA_DIR, "ne_50m_admin_0_map_units.geojson")
+OUT_SVG_PATH = os.path.join(REPO_ROOT, "images", "SVG", "americas-political.svg")
 
 GEOJSON_URL = (
     "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/"
     "ne_50m_admin_0_countries.geojson"
+)
+GEOJSON_MAP_UNITS_URL = (
+    "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/"
+    "ne_50m_admin_0_map_units.geojson"
 )
 
 
@@ -37,6 +42,15 @@ def ensure_geojson() -> None:
         f.write(body)
 
 
+def ensure_map_units_geojson() -> None:
+    os.makedirs(DATA_DIR, exist_ok=True)
+    if os.path.exists(GEOJSON_MAP_UNITS_PATH) and os.path.getsize(GEOJSON_MAP_UNITS_PATH) > 0:
+        return
+    body = fetch_text(GEOJSON_MAP_UNITS_URL)
+    with open(GEOJSON_MAP_UNITS_PATH, "w", encoding="utf-8") as f:
+        f.write(body)
+
+
 def escape_attr(s: str) -> str:
     return (
         str(s)
@@ -49,7 +63,9 @@ def escape_attr(s: str) -> str:
 
 def stable_id(props: dict) -> str:
     iso2 = (props.get("ISO_A2") or "").strip()
-    if iso2 and iso2 != "-99":
+    # Some Natural Earth layers use extended codes in ISO_A2 (e.g. FR-971),
+    # so only treat ISO_A2 as an ID when it looks like a real ISO-3166 alpha-2.
+    if len(iso2) == 2 and iso2.isalpha() and iso2 != "-99":
         return iso2.upper()
     iso3 = (props.get("ISO_A3") or "").strip()
     if iso3 and iso3 != "-99":
@@ -74,6 +90,9 @@ def is_americas_feature(feature: dict) -> bool:
     props = feature.get("properties") or {}
     continent = (props.get("CONTINENT") or "").strip().lower()
     return continent in ("north america", "south america")
+
+
+EXTRA_CARIBBEAN_MAP_UNITS_ISO3 = frozenset({"GLP", "MTQ", "BES"})
 
 
 def rad(deg: float) -> float:
@@ -254,10 +273,73 @@ def svg_path_from_rings(rings_xy):
 
 def main() -> None:
     ensure_geojson()
+    ensure_map_units_geojson()
     with open(GEOJSON_PATH, "r", encoding="utf-8") as f:
         geo = json.load(f)
 
-    features = [ft for ft in (geo.get("features") or []) if is_americas_feature(ft)]
+    features = []
+    for ft in (geo.get("features") or []):
+        if is_americas_feature(ft):
+            features.append(ft)
+            continue
+
+        # Natural Earth may not list French Guiana as its own country in some versions.
+        # If we have the full France geometry, extract the polygon(s) that fall in French Guiana space.
+        props = ft.get("properties") or {}
+        name = (props.get("NAME") or props.get("ADMIN") or "").strip().lower()
+        if name != "france":
+            continue
+
+        geom = ft.get("geometry") or {}
+        gtype = geom.get("type")
+        extracted_polys = []
+
+        def try_poly(poly_rings):
+            # poly_rings is a list of rings; ring_center_lon_lat expects a single ring.
+            if not poly_rings:
+                return
+            lon, lat = ring_center_lon_lat(poly_rings[0])
+            # French Guiana is around lon ~ -53, lat ~ 3-6.
+            # Keep this fairly tight so we don't pull Caribbean French territories.
+            if -60.0 <= lon <= -45.0 and -2.0 <= lat <= 10.0:
+                extracted_polys.append(poly_rings)
+
+        if gtype == "Polygon":
+            try_poly(geom.get("coordinates", []))
+        elif gtype == "MultiPolygon":
+            for poly in geom.get("coordinates", []):
+                try_poly(poly)
+
+        if extracted_polys:
+            synthetic = {
+                "type": "Feature",
+                "properties": {
+                    "ISO_A3": "GUF",
+                    "ISO_A2": "GF",
+                    "NAME": "French Guiana",
+                    "ADMIN": "French Guiana",
+                    "CONTINENT": "South America",
+                },
+                "geometry": {
+                    "type": "MultiPolygon",
+                    "coordinates": extracted_polys,
+                },
+            }
+            features.append(synthetic)
+
+    # Add select Caribbean territories that are not present in admin_0_countries at 50m scale,
+    # but do exist in admin_0_map_units (e.g. Guadeloupe, Martinique, Caribbean Netherlands).
+    with open(GEOJSON_MAP_UNITS_PATH, "r", encoding="utf-8") as f:
+        mu = json.load(f)
+    for ft in (mu.get("features") or []):
+        props = ft.get("properties") or {}
+        iso3 = (props.get("ISO_A3") or "").strip().upper()
+        if iso3 not in EXTRA_CARIBBEAN_MAP_UNITS_ISO3:
+            continue
+        if not is_americas_feature(ft):
+            continue
+        features.append(ft)
+
     if not features:
         raise RuntimeError("No Americas features found in GeoJSON.")
 

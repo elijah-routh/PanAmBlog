@@ -44,7 +44,7 @@
       <div class="col-md-8">
         <div class="card shadow-sm h-100 map-card">
           <div class="card-body p-0">
-            <object id="map-object" data="images/americas-political.svg" type="image/svg+xml" aria-label="Americas map"></object>
+            <object id="map-object" data="images/SVG/americas-political.svg" type="image/svg+xml" aria-label="Americas map"></object>
           </div>
         </div>
       </div>
@@ -177,43 +177,49 @@
         readout.textContent = "No country paths in SVG.";
         return;
       }
+
+      function onCountryEnter(c) {
+        bringToFront(c);
+        c.classList.add("is-hovered");
+        var name = c.getAttribute("data-name") || c.id || "?";
+        var sub = c.getAttribute("data-subregion");
+        readout.textContent = "Country: " + name;
+        details.textContent = sub ? "ID: " + (c.id || "N/A") + " | " + name + " | US: " + sub : "ID: " + (c.id || "N/A") + " | " + name;
+      }
+      function onCountryLeave(c) {
+        c.classList.remove("is-hovered");
+        if (!selectedZoomId) {
+          readout.textContent = "Hover a country...";
+          details.textContent = "Move your cursor over the map.";
+        }
+      }
+      function onCountryClick(c, ev) {
+        ev.stopPropagation();
+        if (selectedZoomId === c.id) {
+          readout.textContent = "Hover a country...";
+          details.textContent = "Move your cursor over the map.";
+          resetZoom();
+          return;
+        }
+        selectedZoomId = c.id;
+        svgRoot.querySelectorAll(".country.is-selected").forEach(function (n) { n.classList.remove("is-selected"); });
+        bringToFront(c);
+        c.classList.add("is-selected");
+        if (hotspot) {
+          hotspot.classList.remove("is-selected");
+          // When zoomed on a country, don't let the hotspot sit on top of countries.
+          hotspotPointer(false);
+        }
+        zoomToElement(c, 24);
+        var name = c.getAttribute("data-name") || c.id || "?";
+        readout.textContent = "Country: " + name;
+        details.textContent = "Click again to reset zoom.";
+      }
+
       countries.forEach(function (c) {
-        c.addEventListener("mouseenter", function () {
-          bringToFront(c);
-          c.classList.add("is-hovered");
-          var name = c.getAttribute("data-name") || c.id || "?";
-          var sub = c.getAttribute("data-subregion");
-          readout.textContent = "Country: " + name;
-          details.textContent = sub ? "ID: " + (c.id || "N/A") + " | " + name + " | US: " + sub : "ID: " + (c.id || "N/A") + " | " + name;
-        });
-        c.addEventListener("mouseleave", function () {
-          c.classList.remove("is-hovered");
-          if (!selectedZoomId) {
-            readout.textContent = "Hover a country...";
-            details.textContent = "Move your cursor over the map.";
-          }
-        });
-        c.addEventListener("click", function (ev) {
-          ev.stopPropagation();
-          if (selectedZoomId === c.id) {
-            readout.textContent = "Hover a country...";
-            details.textContent = "Move your cursor over the map.";
-            resetZoom();
-            return;
-          }
-          selectedZoomId = c.id;
-          svgRoot.querySelectorAll(".country.is-selected").forEach(function (n) { n.classList.remove("is-selected"); });
-          bringToFront(c);
-          c.classList.add("is-selected");
-          if (hotspot) {
-            hotspot.classList.remove("is-selected");
-            hotspotPointer(true);
-          }
-          zoomToElement(c, 24);
-          var name = c.getAttribute("data-name") || c.id || "?";
-          readout.textContent = "Country: " + name;
-          details.textContent = "Click again to reset zoom.";
-        });
+        c.addEventListener("mouseenter", function () { onCountryEnter(c); });
+        c.addEventListener("mouseleave", function () { onCountryLeave(c); });
+        c.addEventListener("click", function (ev) { onCountryClick(c, ev); });
       });
 
       svgRoot.addEventListener("click", function (ev) {
@@ -230,7 +236,7 @@
 
     async function inlineFallback() {
       try {
-        var r = await fetch("images/americas-political.svg", { cache: "no-store" });
+        var r = await fetch("images/SVG/americas-political.svg", { cache: "no-store" });
         if (!r.ok) throw new Error(String(r.status));
         var wrap = mapObject.parentElement;
         wrap.innerHTML = '<div id="inline-svg" style="width:100%;height:78vh;min-height:560px">' + (await r.text()) + "</div>";

@@ -12,11 +12,16 @@ import urllib.request
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_DIR = os.path.join(REPO_ROOT, "data")
 GEOJSON_PATH = os.path.join(DATA_DIR, "ne_50m_admin_0_countries.geojson")
-OUT_SVG_PATH = os.path.join(REPO_ROOT, "images", "caribbean-political.svg")
+GEOJSON_MAP_UNITS_PATH = os.path.join(DATA_DIR, "ne_50m_admin_0_map_units.geojson")
+OUT_SVG_PATH = os.path.join(REPO_ROOT, "images", "SVG", "caribbean-political.svg")
 
 GEOJSON_URL = (
     "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/"
     "ne_50m_admin_0_countries.geojson"
+)
+GEOJSON_MAP_UNITS_URL = (
+    "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/"
+    "ne_50m_admin_0_map_units.geojson"
 )
 
 
@@ -41,6 +46,15 @@ def ensure_geojson() -> None:
         f.write(body)
 
 
+def ensure_map_units_geojson() -> None:
+    os.makedirs(DATA_DIR, exist_ok=True)
+    if os.path.exists(GEOJSON_MAP_UNITS_PATH) and os.path.getsize(GEOJSON_MAP_UNITS_PATH) > 0:
+        return
+    body = fetch_text(GEOJSON_MAP_UNITS_URL)
+    with open(GEOJSON_MAP_UNITS_PATH, "w", encoding="utf-8") as f:
+        f.write(body)
+
+
 def escape_attr(s: str) -> str:
     return (
         str(s)
@@ -53,7 +67,7 @@ def escape_attr(s: str) -> str:
 
 def stable_id(props: dict) -> str:
     iso2 = (props.get("ISO_A2") or "").strip()
-    if iso2 and iso2 != "-99":
+    if len(iso2) == 2 and iso2.isalpha() and iso2 != "-99":
         return iso2.upper()
     iso3 = (props.get("ISO_A3") or "").strip()
     if iso3 and iso3 != "-99":
@@ -93,6 +107,9 @@ def is_caribbean_feature(feature: dict) -> bool:
     }:
         return True
     return False
+
+
+EXTRA_CARIBBEAN_MAP_UNITS_ISO3 = frozenset({"GLP", "MTQ", "BES"})
 
 
 def rad(deg: float) -> float:
@@ -150,10 +167,23 @@ def svg_path_from_rings(rings_xy):
 
 def main() -> None:
     ensure_geojson()
+    ensure_map_units_geojson()
     with open(GEOJSON_PATH, "r", encoding="utf-8") as f:
         geo = json.load(f)
 
     features = [ft for ft in (geo.get("features") or []) if is_caribbean_feature(ft)]
+
+    # Add select Caribbean territories that may be missing from admin_0_countries at 50m scale.
+    with open(GEOJSON_MAP_UNITS_PATH, "r", encoding="utf-8") as f:
+        mu = json.load(f)
+    for ft in (mu.get("features") or []):
+        props = ft.get("properties") or {}
+        iso3 = (props.get("ISO_A3") or "").strip().upper()
+        if iso3 not in EXTRA_CARIBBEAN_MAP_UNITS_ISO3:
+            continue
+        if not is_caribbean_feature(ft):
+            continue
+        features.append(ft)
     if not features:
         raise RuntimeError("No Caribbean features found in GeoJSON.")
 
