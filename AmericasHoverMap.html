@@ -114,6 +114,13 @@
             <h2 class="card-title h6 text-uppercase text-muted mb-2">Country Info</h2>
             <p id="country-readout" class="fw-semibold mb-2">Hover a country...</p>
             <p id="country-details" class="mb-0 small text-secondary">Move your cursor over the map to display country information here.</p>
+            <hr class="my-3">
+            <h3 class="h6 text-uppercase text-muted mb-2">Backpacking Pin</h3>
+            <p id="pin-readout" class="fw-semibold mb-2">No pin selected</p>
+            <p id="pin-details" class="mb-2 small text-secondary">Click a pin to see backpacking notes.</p>
+            <div id="pin-photo" class="d-none">
+              <img id="pin-photo-img" class="img-fluid rounded" src="" alt="">
+            </div>
           </div>
         </div>
       </div>
@@ -134,6 +141,38 @@
   </div>
   <script>
     (function () {
+      var pinReadoutEl = document.getElementById("pin-readout");
+      var pinDetailsEl = document.getElementById("pin-details");
+      var pinPhotoWrapEl = document.getElementById("pin-photo");
+      var pinPhotoImgEl = document.getElementById("pin-photo-img");
+
+      function renderPinDetails(spot) {
+        if (!spot) {
+          pinReadoutEl.textContent = "No pin selected";
+          pinDetailsEl.textContent = "Click a pin to see backpacking notes.";
+          pinPhotoImgEl.removeAttribute("src");
+          pinPhotoImgEl.alt = "";
+          pinPhotoWrapEl.classList.add("d-none");
+          return;
+        }
+        pinReadoutEl.textContent = spot.name || "Selected Pin";
+        var summary = typeof spot.summary === "string" ? spot.summary.trim() : "";
+        var description = typeof spot.description === "string" ? spot.description.trim() : "";
+        pinDetailsEl.textContent =
+          summary && description
+            ? summary + " " + description
+            : description || summary || "No pin details provided yet.";
+        if (spot.photo && spot.photo.src) {
+          pinPhotoImgEl.src = spot.photo.src;
+          pinPhotoImgEl.alt = spot.photo.alt || spot.name || "";
+          pinPhotoWrapEl.classList.remove("d-none");
+        } else {
+          pinPhotoImgEl.removeAttribute("src");
+          pinPhotoImgEl.alt = "";
+          pinPhotoWrapEl.classList.add("d-none");
+        }
+      }
+
       var map = SvgPoliticalMap.createController({
         detailsBase: "data/americas-map",
         detailsSubdir: "country-details",
@@ -151,7 +190,9 @@
           regionHoverTitlePrefix: "Country:",
           noRegionsMessage: "No country paths in SVG.",
         },
+        onPinSelect: renderPinDetails,
       });
+      renderPinDetails(null);
       map.startObjectEmbed();
     })();
   </script>

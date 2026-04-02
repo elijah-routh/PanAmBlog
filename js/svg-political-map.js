@@ -10,6 +10,65 @@
   "use strict";
 
   var CORNER_SLOTS = ["top-left", "top-right", "bottom-left", "bottom-right"];
+  var SVG_NS = "http://www.w3.org/2000/svg";
+  var XLINK_NS = "http://www.w3.org/1999/xlink";
+  var MAP_PIN_LAYER_ID = "map-pins";
+  var FALLBACK_PIN_ICON_SRC =
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ff7043' stroke='%230e1a2e' stroke-width='1.5' d='M12 1C7.03 1 3 5.03 3 10c0 6.25 7.08 12.39 8.52 13.57a.75.75 0 0 0 .96 0C13.92 22.39 21 16.25 21 10c0-4.97-4.03-9-9-9z'/%3E%3Ccircle cx='12' cy='10' r='3.2' fill='white'/%3E%3C/svg%3E";
+  var MAP_PROJECTION = {
+    lon0: -95,
+    lat0: 15,
+    pad: 20,
+    minX: -0.9827737557861096,
+    maxY: 1.1924636628838035,
+    scale: 364.50551960372627,
+  };
+
+  function degToRad(deg) {
+    return (deg * Math.PI) / 180;
+  }
+
+  function lambertAzimuthalEqualArea(lonDeg, latDeg, lon0Deg, lat0Deg) {
+    var lon = degToRad(Number(lonDeg));
+    var lat = degToRad(Number(latDeg));
+    var lon0 = degToRad(Number(lon0Deg));
+    var lat0 = degToRad(Number(lat0Deg));
+    var sinLat = Math.sin(lat);
+    var cosLat = Math.cos(lat);
+    var sinLat0 = Math.sin(lat0);
+    var cosLat0 = Math.cos(lat0);
+    var dLon = lon - lon0;
+    var cosC = sinLat0 * sinLat + cosLat0 * cosLat * Math.cos(dLon);
+    if (!Number.isFinite(cosC)) return null;
+    cosC = Math.max(-1, Math.min(1, cosC));
+    var denom = 1 + cosC;
+    if (denom <= 0) return null;
+    var k = Math.sqrt(2 / denom);
+    return {
+      x: k * cosLat * Math.sin(dLon),
+      y: k * (cosLat0 * sinLat - sinLat0 * cosLat * Math.cos(dLon)),
+    };
+  }
+
+  function projectLonLatToSvg(lon, lat) {
+    if (!Number.isFinite(Number(lon)) || !Number.isFinite(Number(lat))) return null;
+    var p = lambertAzimuthalEqualArea(lon, lat, MAP_PROJECTION.lon0, MAP_PROJECTION.lat0);
+    if (!p) return null;
+    return {
+      x: (p.x - MAP_PROJECTION.minX) * MAP_PROJECTION.scale + MAP_PROJECTION.pad,
+      y: (MAP_PROJECTION.maxY - p.y) * MAP_PROJECTION.scale + MAP_PROJECTION.pad,
+    };
+  }
+
+  function toAbsoluteAssetUrl(src) {
+    if (typeof src !== "string" || !src) return src;
+    try {
+      var base = (typeof window !== "undefined" && window.location && window.location.href) || document.baseURI;
+      return new URL(src, base).href;
+    } catch (e) {
+      return src;
+    }
+  }
 
   /** CSS injected into the SVG for hover/selection (Americas defaults; pass injectStyles: null to skip). */
   function buildDefaultInjectStyles(regionClass) {
@@ -35,6 +94,11 @@
       "." +
       rc +
       ".is-selected{fill:#ff9a2f!important;stroke:#0e1a2e!important;stroke-width:1.6!important}"
+      +".map-pin-layer{pointer-events:none}"
+      +".map-pin{cursor:pointer;pointer-events:all;opacity:.96;transition:opacity 130ms ease,filter 130ms ease}"
+      +".map-pin image{overflow:visible}"
+      +".map-pin:hover{opacity:1;filter:drop-shadow(0 1px 2px rgba(14,26,46,.45))}"
+      +".map-pin.is-selected{opacity:1;filter:drop-shadow(0 2px 4px rgba(14,26,46,.55))}"
     );
   }
 
@@ -91,12 +155,19 @@
       objectEl: userCfg.objectEl,
       svgFetchUrl: userCfg.svgFetchUrl,
       injectStyles: resolvedInjectStyles,
+      defaultPinIconSrc: userCfg.defaultPinIconSrc || FALLBACK_PIN_ICON_SRC,
+      onPinSelect: typeof userCfg.onPinSelect === "function" ? userCfg.onPinSelect : null,
     };
     var strings = Object.assign({}, DEFAULT_STRINGS, userCfg.strings || {});
     var regionSel = "." + cfg.regionClass;
 
     var countryDetailsCache = new Map();
     var detailsPathById = null;
+    var activeSvgRoot = null;
+    var activePinLayer = null;
+    var activePinById = new Map();
+    var activeSelectedPinId = null;
+    var activePinCountryId = null;
 
     function getReadout() {
       return cfg.readoutEl;
@@ -156,6 +227,7 @@
         title: typeof json.title === "string" ? json.title : "",
         description: typeof json.description === "string" ? json.description : "",
         photosByCorner: {},
+        backpackingSpots: [],
         fallback: false,
       };
       var pbc = json.photosByCorner && typeof json.photosByCorner === "object" ? json.photosByCorner : {};
@@ -163,6 +235,40 @@
         var ph = pbc[s];
         out.photosByCorner[s] = ph && ph.src ? { src: ph.src, alt: typeof ph.alt === "string" ? ph.alt : "" } : null;
       });
+      if (Array.isArray(json.backpackingSpots)) {
+        json.backpackingSpots.forEach(function (spot, idx) {
+          if (!spot || typeof spot !== "object") return;
+          var lat = Number(spot.lat);
+          var lon = Number(spot.lon);
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+          var id = typeof spot.id === "string" && spot.id ? spot.id : null;
+          if (!id) return;
+          var iconIn = spot.icon && typeof spot.icon === "object" ? spot.icon : null;
+          var iconWidth = iconIn && Number.isFinite(Number(iconIn.width)) && Number(iconIn.width) > 0 ? Number(iconIn.width) : 24;
+          var iconHeight = iconIn && Number.isFinite(Number(iconIn.height)) && Number(iconIn.height) > 0 ? Number(iconIn.height) : 24;
+          var anchorX = iconIn && Number.isFinite(Number(iconIn.anchorX)) ? Number(iconIn.anchorX) : iconWidth / 2;
+          var anchorY = iconIn && Number.isFinite(Number(iconIn.anchorY)) ? Number(iconIn.anchorY) : iconHeight;
+          out.backpackingSpots.push({
+            id: id,
+            name: typeof spot.name === "string" && spot.name ? spot.name : "Spot " + String(idx + 1),
+            lat: lat,
+            lon: lon,
+            summary: typeof spot.summary === "string" ? spot.summary : "",
+            description: typeof spot.description === "string" ? spot.description : "",
+            icon: {
+              src: iconIn && typeof iconIn.src === "string" && iconIn.src ? iconIn.src : cfg.defaultPinIconSrc,
+              width: iconWidth,
+              height: iconHeight,
+              anchorX: anchorX,
+              anchorY: anchorY,
+            },
+            photo:
+              spot.photo && typeof spot.photo === "object" && typeof spot.photo.src === "string" && spot.photo.src
+                ? { src: spot.photo.src, alt: typeof spot.photo.alt === "string" ? spot.photo.alt : "" }
+                : null,
+          });
+        });
+      }
       return out;
     }
 
@@ -236,6 +342,123 @@
       });
     }
 
+    function clearPinSelection() {
+      if (!activeSelectedPinId) return;
+      var prev = activePinById.get(activeSelectedPinId);
+      if (prev) prev.classList.remove("is-selected");
+      activeSelectedPinId = null;
+    }
+
+    function selectPin(spotId) {
+      if (!spotId || !activePinById.has(spotId)) return false;
+      clearPinSelection();
+      var pin = activePinById.get(spotId);
+      if (!pin) return false;
+      pin.classList.add("is-selected");
+      if (pin.parentNode) pin.parentNode.appendChild(pin);
+      activeSelectedPinId = spotId;
+      if (cfg.onPinSelect) cfg.onPinSelect(pin.__spotData || null);
+      return true;
+    }
+
+    function ensurePinLayer(svgRoot) {
+      if (!svgRoot) return null;
+      if (activePinLayer && activePinLayer.ownerSVGElement === svgRoot) return activePinLayer;
+      var existing = svgRoot.querySelector("#" + MAP_PIN_LAYER_ID);
+      if (existing) {
+        activePinLayer = existing;
+        return activePinLayer;
+      }
+      var layer = svgRoot.ownerDocument.createElementNS(SVG_NS, "g");
+      layer.setAttribute("id", MAP_PIN_LAYER_ID);
+      layer.setAttribute("class", "map-pin-layer");
+      svgRoot.appendChild(layer);
+      activePinLayer = layer;
+      return activePinLayer;
+    }
+
+    function clearPins(options) {
+      var opts = options && typeof options === "object" ? options : {};
+      clearPinSelection();
+      activePinById.clear();
+      activePinCountryId = null;
+      if (activePinLayer) activePinLayer.innerHTML = "";
+      if (!opts.suppressCallback && cfg.onPinSelect) cfg.onPinSelect(null);
+    }
+
+    function renderPinsForCountry(countryId, spots) {
+      var normalizedCountryId = countryId == null ? null : String(countryId);
+      var previousSelectedPinId =
+        normalizedCountryId && activePinCountryId === normalizedCountryId ? activeSelectedPinId : null;
+      var shouldPreserveSelectedPin = !!previousSelectedPinId;
+
+      clearPins({ suppressCallback: shouldPreserveSelectedPin });
+      if (!activeSvgRoot || !countryId || !Array.isArray(spots) || !spots.length) return;
+      var layer = ensurePinLayer(activeSvgRoot);
+      if (!layer) return;
+      activePinCountryId = normalizedCountryId;
+      spots.forEach(function (spot) {
+        if (!spot || typeof spot !== "object" || !spot.id) return;
+        var projected = projectLonLatToSvg(spot.lon, spot.lat);
+        if (!projected) return;
+
+        var icon = spot.icon && typeof spot.icon === "object" ? spot.icon : {};
+        var iconWidth = Number.isFinite(Number(icon.width)) && Number(icon.width) > 0 ? Number(icon.width) : 24;
+        var iconHeight = Number.isFinite(Number(icon.height)) && Number(icon.height) > 0 ? Number(icon.height) : 24;
+        var anchorX = Number.isFinite(Number(icon.anchorX)) ? Number(icon.anchorX) : iconWidth / 2;
+        var anchorY = Number.isFinite(Number(icon.anchorY)) ? Number(icon.anchorY) : iconHeight;
+        var iconSrc = typeof icon.src === "string" && icon.src ? icon.src : cfg.defaultPinIconSrc;
+        var iconHref = toAbsoluteAssetUrl(iconSrc);
+
+        var pin = activeSvgRoot.ownerDocument.createElementNS(SVG_NS, "g");
+        pin.setAttribute("class", "map-pin");
+        pin.setAttribute("data-country-id", String(countryId));
+        pin.setAttribute("data-spot-id", String(spot.id));
+        pin.setAttribute("tabindex", "0");
+        pin.setAttribute("role", "button");
+        pin.setAttribute("aria-label", spot.name || spot.id);
+        pin.setAttribute("transform", "translate(" + projected.x.toFixed(2) + " " + projected.y.toFixed(2) + ")");
+        pin.__spotData = spot;
+
+        var title = activeSvgRoot.ownerDocument.createElementNS(SVG_NS, "title");
+        title.textContent = spot.name || spot.id;
+        pin.appendChild(title);
+
+        var image = activeSvgRoot.ownerDocument.createElementNS(SVG_NS, "image");
+        image.setAttribute("x", String(-anchorX));
+        image.setAttribute("y", String(-anchorY));
+        image.setAttribute("width", String(iconWidth));
+        image.setAttribute("height", String(iconHeight));
+        image.setAttribute("href", iconHref);
+        image.setAttributeNS(XLINK_NS, "xlink:href", iconHref);
+        image.addEventListener("error", function () {
+          var current = image.getAttribute("href") || image.getAttributeNS(XLINK_NS, "href") || "";
+          if (current === cfg.defaultPinIconSrc) return;
+          image.setAttribute("href", cfg.defaultPinIconSrc);
+          image.setAttributeNS(XLINK_NS, "xlink:href", cfg.defaultPinIconSrc);
+        });
+        pin.appendChild(image);
+
+        pin.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          selectPin(spot.id);
+        });
+        pin.addEventListener("keydown", function (ev) {
+          if (ev.key !== "Enter" && ev.key !== " ") return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          selectPin(spot.id);
+        });
+
+        activePinById.set(spot.id, pin);
+        layer.appendChild(pin);
+      });
+
+      if (shouldPreserveSelectedPin && !selectPin(previousSelectedPinId) && cfg.onPinSelect) {
+        cfg.onPinSelect(null);
+      }
+    }
+
     function isRegionEl(el) {
       return el && el.classList && el.classList.contains(cfg.regionClass);
     }
@@ -247,6 +470,9 @@
     function enhanceSvg(svgRoot) {
       var readout = getReadout();
       var details = getDetails();
+      activeSvgRoot = svgRoot;
+      activePinLayer = null;
+      clearPins();
 
       var selectedZoomId = null;
       var hoveredRegionId = null;
@@ -324,9 +550,19 @@
         if (hotspot) hotspot.setAttribute("pointer-events", on ? "all" : "none");
       }
 
+      /** Removes .is-hovered from every region (mouseleave can be skipped after bringToFront / fast moves). */
+      function clearAllRegionHoverClasses() {
+        svgRoot.querySelectorAll(regionSel + ".is-hovered").forEach(function (n) {
+          n.classList.remove("is-hovered");
+        });
+      }
+
       function resetZoom() {
         selectedZoomId = null;
+        hoveredRegionId = null;
         clearCornerPhotos();
+        clearPins();
+        clearAllRegionHoverClasses();
         svgRoot.querySelectorAll(regionSel + ".is-selected").forEach(function (n) {
           n.classList.remove("is-selected");
         });
@@ -355,11 +591,13 @@
 
       function syncReadoutPanel() {
         if (hotspot && selectedZoomId === cfg.hotspotZoomId) {
+          clearPins();
           readout.textContent = strings.hotspotZoomedTitle;
           details.textContent = strings.hotspotZoomedDetails;
           return;
         }
         if (!selectedZoomId) {
+          clearPins();
           if (hoveredHotspot) {
             readout.textContent = strings.hotspotHoverTitle;
             details.textContent = strings.hotspotHoverDetails;
@@ -379,6 +617,7 @@
         var selId = selectedZoomId;
         var selEl = svgRoot.getElementById(selId);
         if (!selEl || !isRegionEl(selEl)) {
+          clearPins();
           readout.textContent = strings.emptyHoverTitle;
           details.textContent = strings.emptyHoverDetails;
           return;
@@ -395,6 +634,7 @@
           if (selectedZoomId !== selId) return;
           if (hoveredRegionId && hoveredRegionId !== selId) return;
           applyCountryDetailsToUi(selEl, data);
+          renderPinsForCountry(selId, data.backpackingSpots || []);
           bringToFront(selEl);
         });
       }
@@ -425,7 +665,10 @@
             return;
           }
           clearCornerPhotos();
+          clearPins();
           hoveredHotspot = false;
+          clearAllRegionHoverClasses();
+          hoveredRegionId = null;
           selectedZoomId = cfg.hotspotZoomId;
           svgRoot.querySelectorAll(regionSel + ".is-selected").forEach(function (n) {
             n.classList.remove("is-selected");
@@ -464,9 +707,13 @@
         }
         hoveredHotspot = false;
         selectedZoomId = c.id;
+        clearPins();
         svgRoot.querySelectorAll(regionSel + ".is-selected").forEach(function (n) {
           n.classList.remove("is-selected");
         });
+        clearAllRegionHoverClasses();
+        hoveredRegionId = c.id;
+        c.classList.add("is-hovered");
         bringToFront(c);
         c.classList.add("is-selected");
         if (hotspot) {
@@ -544,6 +791,11 @@
       startObjectEmbed: startObjectEmbed,
       clearCornerPhotos: clearCornerPhotos,
       ensureCornerOverlay: ensureCornerOverlay,
+      projectLonLatToSvg: projectLonLatToSvg,
+      ensurePinLayer: ensurePinLayer,
+      renderPinsForCountry: renderPinsForCountry,
+      clearPins: clearPins,
+      selectPin: selectPin,
       loadCountryDetails: loadCountryDetails,
       normalizeCountryDetails: normalizeCountryDetails,
       applyCountryDetailsToUi: applyCountryDetailsToUi,
@@ -553,5 +805,7 @@
   global.SvgPoliticalMap = {
     createController: createController,
     CORNER_SLOTS: CORNER_SLOTS,
+    projectLonLatToSvg: projectLonLatToSvg,
+    lambertAzimuthalEqualArea: lambertAzimuthalEqualArea,
   };
 })(typeof window !== "undefined" ? window : global);

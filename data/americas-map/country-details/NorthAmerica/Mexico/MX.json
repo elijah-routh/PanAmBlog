@@ -7,7 +7,31 @@
       "alt": "Natural rock arch at Los Cabos"
     },
     "top-right": null,
-    "bottom-left": null,
+    "bottom-left": {
+      "src": "images/CountryPictures/Baja-Road.jpg",
+      "alt": "Desert road in Baja California Sur"
+    },
     "bottom-right": null
-  }
+  },
+  "backpackingSpots": [
+    {
+      "id": "mx-bcs-cabo-pulmo",
+      "name": "Cabo Pulmo",
+      "lat": 23.4397,
+      "lon": -109.4333,
+      "summary": "Marine park stop with snorkeling and low-key camping options.",
+      "description": "Small coastal village on the East Cape with reef access, basic services, and peaceful roads for a short recovery day.",
+      "icon": {
+        "src": "images/Icons/backpack-pin.png",
+        "width": 24,
+        "height": 24,
+        "anchorX": 12,
+        "anchorY": 24
+      },
+      "photo": {
+        "src": "images/CountryPictures/Arch_Los_Cabos.jpg",
+        "alt": "Sea arch near Los Cabos in Baja California Sur"
+      }
+    }
+  ]
 }
