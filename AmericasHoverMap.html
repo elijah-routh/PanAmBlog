@@ -10,7 +10,11 @@
   <script src="js/bootstrap.bundle.min.js"></script>
   <style>
     body { background-color: #f4f7fb; }
-    .map-card object, .map-card #inline-svg {
+    .map-object-wrap {
+      position: relative;
+    }
+    .map-object-wrap object,
+    .map-object-wrap #inline-svg {
       display: block;
       width: 100%;
       height: 78vh;
@@ -19,8 +23,34 @@
       background: #fff;
     }
     @media (max-width: 900px) {
-      .map-card object, .map-card #inline-svg { height: 64vh; min-height: 460px; }
+      .map-object-wrap object,
+      .map-object-wrap #inline-svg { height: 64vh; min-height: 460px; }
     }
+    .map-corner-photos {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2;
+    }
+    .corner-slot {
+      position: absolute;
+      width: 120px;
+      height: 90px;
+      overflow: hidden;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2);
+      background: rgba(255, 255, 255, 0.85);
+    }
+    .corner-slot img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .corner-slot--tl { top: 8px; left: 8px; }
+    .corner-slot--tr { top: 8px; right: 8px; }
+    .corner-slot--bl { bottom: 8px; left: 8px; }
+    .corner-slot--br { bottom: 8px; right: 8px; }
   </style>
 </head>
 <body>
@@ -43,8 +73,14 @@
       </div>
       <div class="col-md-8">
         <div class="card shadow-sm h-100 map-card">
-          <div class="card-body p-0">
+          <div class="card-body p-0 map-object-wrap">
             <object id="map-object" data="images/SVG/americas-political.svg" type="image/svg+xml" aria-label="Americas map"></object>
+            <div id="map-corner-photos" class="map-corner-photos" aria-hidden="true">
+              <div class="corner-slot corner-slot--tl" data-corner="top-left"></div>
+              <div class="corner-slot corner-slot--tr" data-corner="top-right"></div>
+              <div class="corner-slot corner-slot--bl" data-corner="bottom-left"></div>
+              <div class="corner-slot corner-slot--br" data-corner="bottom-right"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -55,8 +91,127 @@
     const readout = document.getElementById("country-readout");
     const details = document.getElementById("country-details");
 
+    const DETAILS_BASE = "data/americas-map";
+    const CORNER_SLOTS = ["top-left", "top-right", "bottom-left", "bottom-right"];
+    const countryDetailsCache = new Map();
+    let detailsPathById = null;
+
+    function clearCornerPhotos() {
+      var overlay = document.getElementById("map-corner-photos");
+      if (!overlay) return;
+      overlay.querySelectorAll("[data-corner]").forEach(function (slot) { slot.innerHTML = ""; });
+    }
+
+    function ensureCornerOverlay(container) {
+      if (!container) return null;
+      var existing = container.querySelector("#map-corner-photos");
+      if (existing) return existing;
+      var wrap = document.createElement("div");
+      wrap.id = "map-corner-photos";
+      wrap.className = "map-corner-photos";
+      wrap.setAttribute("aria-hidden", "true");
+      [["tl", "top-left"], ["tr", "top-right"], ["bl", "bottom-left"], ["br", "bottom-right"]].forEach(function (pair) {
+        var d = document.createElement("div");
+        d.className = "corner-slot corner-slot--" + pair[0];
+        d.setAttribute("data-corner", pair[1]);
+        wrap.appendChild(d);
+      });
+      container.appendChild(wrap);
+      return wrap;
+    }
+
+    async function fetchDetailsPathIndex() {
+      if (detailsPathById !== null) return detailsPathById;
+      try {
+        var r = await fetch(DETAILS_BASE + "/country-details/by-id.json", { cache: "force-cache" });
+        if (r.ok) detailsPathById = await r.json();
+        else detailsPathById = {};
+      } catch (e) {
+        detailsPathById = {};
+      }
+      return detailsPathById;
+    }
+
+    function normalizeCountryDetails(json) {
+      var out = {
+        title: typeof json.title === "string" ? json.title : "",
+        description: typeof json.description === "string" ? json.description : "",
+        photosByCorner: {},
+        fallback: false
+      };
+      var pbc = json.photosByCorner && typeof json.photosByCorner === "object" ? json.photosByCorner : {};
+      CORNER_SLOTS.forEach(function (s) {
+        var ph = pbc[s];
+        out.photosByCorner[s] = ph && ph.src ? { src: ph.src, alt: typeof ph.alt === "string" ? ph.alt : "" } : null;
+      });
+      return out;
+    }
+
+    async function loadCountryDetails(svgId) {
+      if (!svgId || svgId === "caribbean") {
+        return { fallback: true };
+      }
+      if (countryDetailsCache.has(svgId)) return countryDetailsCache.get(svgId);
+      var promise = (async function () {
+        async function tryFetch(relPath) {
+          try {
+            var r = await fetch(DETAILS_BASE + "/country-details/" + relPath, { cache: "force-cache" });
+            if (!r.ok) return null;
+            return await r.json();
+          } catch (e) {
+            return null;
+          }
+        }
+        var raw = await tryFetch(svgId + ".json");
+        if (!raw) {
+          var idx = await fetchDetailsPathIndex();
+          var nested = idx[svgId];
+          if (nested) raw = await tryFetch(nested);
+        }
+        if (!raw || typeof raw !== "object") {
+          return { fallback: true };
+        }
+        try {
+          return normalizeCountryDetails(raw);
+        } catch (e) {
+          return { fallback: true };
+        }
+      })();
+      countryDetailsCache.set(svgId, promise);
+      return promise;
+    }
+
+    function applyCountryDetailsToUi(pathEl, data) {
+      var name = pathEl.getAttribute("data-name") || pathEl.id || "?";
+      var overlay = document.getElementById("map-corner-photos");
+      if (data.fallback) {
+        readout.textContent = "Country: " + name;
+        details.textContent = "Click again to reset zoom.";
+        clearCornerPhotos();
+        return;
+      }
+      readout.textContent = data.title || name;
+      details.textContent = data.description || "Click again to reset zoom.";
+      if (!overlay) return;
+      CORNER_SLOTS.forEach(function (slot) {
+        var slotEl = overlay.querySelector("[data-corner=\"" + slot + "\"]");
+        if (!slotEl) return;
+        slotEl.innerHTML = "";
+        var ph = data.photosByCorner[slot];
+        if (ph && ph.src) {
+          var img = document.createElement("img");
+          img.src = ph.src;
+          img.alt = ph.alt || "";
+          slotEl.appendChild(img);
+        }
+      });
+    }
+
     function enhanceSvg(svgRoot) {
       let selectedZoomId = null;
+      let hoveredCountryId = null;
+      let hoveredHotspot = false;
+      let readoutSyncScheduled = false;
       const vb = svgRoot.viewBox.baseVal;
       const baseViewBox = { x: vb.x, y: vb.y, width: vb.width, height: vb.height };
 
@@ -126,10 +281,72 @@
       }
       function resetZoom() {
         selectedZoomId = null;
+        clearCornerPhotos();
         svgRoot.querySelectorAll(".country.is-selected").forEach(function (n) { n.classList.remove("is-selected"); });
         if (hotspot) hotspot.classList.remove("is-selected");
         hotspotPointer(true);
         animateViewBox(baseViewBox);
+      }
+
+      function showHoverLineForCountry(c) {
+        var name = c.getAttribute("data-name") || c.id || "?";
+        var sub = c.getAttribute("data-subregion");
+        readout.textContent = "Country: " + name;
+        details.textContent = sub ? "ID: " + (c.id || "N/A") + " | " + name + " | US: " + sub : "ID: " + (c.id || "N/A") + " | " + name;
+      }
+
+      function scheduleSyncReadout() {
+        if (readoutSyncScheduled) return;
+        readoutSyncScheduled = true;
+        queueMicrotask(function () {
+          readoutSyncScheduled = false;
+          syncReadoutPanel();
+        });
+      }
+
+      function syncReadoutPanel() {
+        if (selectedZoomId === "caribbean") {
+          readout.textContent = "Caribbean (zoomed)";
+          details.textContent = "Hover or click countries and islands. Click ocean to zoom out.";
+          return;
+        }
+        if (!selectedZoomId) {
+          if (hoveredHotspot) {
+            readout.textContent = "Caribbean region";
+            details.textContent = "Click to zoom (same image, viewBox only).";
+            return;
+          }
+          if (hoveredCountryId) {
+            var hc = svgRoot.getElementById(hoveredCountryId);
+            if (hc && hc.classList.contains("country")) {
+              showHoverLineForCountry(hc);
+              return;
+            }
+          }
+          readout.textContent = "Hover a country...";
+          details.textContent = "Move your cursor over the map.";
+          return;
+        }
+        var selId = selectedZoomId;
+        var selEl = svgRoot.getElementById(selId);
+        if (!selEl || !selEl.classList.contains("country")) {
+          readout.textContent = "Hover a country...";
+          details.textContent = "Move your cursor over the map.";
+          return;
+        }
+        if (hoveredCountryId && hoveredCountryId !== selId) {
+          var hEl = svgRoot.getElementById(hoveredCountryId);
+          if (hEl && hEl.classList.contains("country")) {
+            clearCornerPhotos();
+            showHoverLineForCountry(hEl);
+            return;
+          }
+        }
+        loadCountryDetails(selId).then(function (data) {
+          if (selectedZoomId !== selId) return;
+          if (hoveredCountryId && hoveredCountryId !== selId) return;
+          applyCountryDetailsToUi(selEl, data);
+        });
       }
 
       var st = svgRoot.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "style");
@@ -145,30 +362,30 @@
         hotspot.addEventListener("mouseenter", function () {
           if (selectedZoomId) return;
           bringToFront(hotspot);
-          readout.textContent = "Caribbean region";
-          details.textContent = "Click to zoom (same image, viewBox only).";
+          hoveredHotspot = true;
+          scheduleSyncReadout();
         });
         hotspot.addEventListener("mouseleave", function () {
           if (selectedZoomId) return;
-          readout.textContent = "Hover a country...";
-          details.textContent = "Move your cursor over the map.";
+          hoveredHotspot = false;
+          scheduleSyncReadout();
         });
         hotspot.addEventListener("click", function (ev) {
           ev.stopPropagation();
           if (selectedZoomId === "caribbean") {
-            readout.textContent = "Hover a country...";
-            details.textContent = "Move your cursor over the map.";
             resetZoom();
+            scheduleSyncReadout();
             return;
           }
+          clearCornerPhotos();
+          hoveredHotspot = false;
           selectedZoomId = "caribbean";
           svgRoot.querySelectorAll(".country.is-selected").forEach(function (n) { n.classList.remove("is-selected"); });
           bringToFront(hotspot);
           hotspot.classList.add("is-selected");
           zoomToElement(hotspot, 42, 0.55);
           hotspotPointer(false);
-          readout.textContent = "Caribbean (zoomed)";
-          details.textContent = "Hover or click countries and islands. Click ocean to zoom out.";
+          scheduleSyncReadout();
         });
       }
 
@@ -181,26 +398,22 @@
       function onCountryEnter(c) {
         bringToFront(c);
         c.classList.add("is-hovered");
-        var name = c.getAttribute("data-name") || c.id || "?";
-        var sub = c.getAttribute("data-subregion");
-        readout.textContent = "Country: " + name;
-        details.textContent = sub ? "ID: " + (c.id || "N/A") + " | " + name + " | US: " + sub : "ID: " + (c.id || "N/A") + " | " + name;
+        hoveredCountryId = c.id;
+        scheduleSyncReadout();
       }
       function onCountryLeave(c) {
         c.classList.remove("is-hovered");
-        if (!selectedZoomId) {
-          readout.textContent = "Hover a country...";
-          details.textContent = "Move your cursor over the map.";
-        }
+        if (hoveredCountryId === c.id) hoveredCountryId = null;
+        scheduleSyncReadout();
       }
       function onCountryClick(c, ev) {
         ev.stopPropagation();
         if (selectedZoomId === c.id) {
-          readout.textContent = "Hover a country...";
-          details.textContent = "Move your cursor over the map.";
           resetZoom();
+          scheduleSyncReadout();
           return;
         }
+        hoveredHotspot = false;
         selectedZoomId = c.id;
         svgRoot.querySelectorAll(".country.is-selected").forEach(function (n) { n.classList.remove("is-selected"); });
         bringToFront(c);
@@ -211,9 +424,7 @@
           hotspotPointer(false);
         }
         zoomToElement(c, 24);
-        var name = c.getAttribute("data-name") || c.id || "?";
-        readout.textContent = "Country: " + name;
-        details.textContent = "Click again to reset zoom.";
+        scheduleSyncReadout();
       }
 
       countries.forEach(function (c) {
@@ -225,9 +436,8 @@
       svgRoot.addEventListener("click", function (ev) {
         if (ev.target.closest && ev.target.closest(".map-hotspot")) return;
         if (!ev.target.closest || !ev.target.closest(".country")) {
-          readout.textContent = "Hover a country...";
-          details.textContent = "Move your.cursor over the map.";
           resetZoom();
+          scheduleSyncReadout();
         }
       });
       readout.textContent = "Hover a country...";
@@ -240,6 +450,7 @@
         if (!r.ok) throw new Error(String(r.status));
         var wrap = mapObject.parentElement;
         wrap.innerHTML = '<div id="inline-svg" style="width:100%;height:78vh;min-height:560px">' + (await r.text()) + "</div>";
+        ensureCornerOverlay(wrap);
         var root = wrap.querySelector("svg");
         if (!root) throw new Error("no svg");
         root.setAttribute("width", "100%");

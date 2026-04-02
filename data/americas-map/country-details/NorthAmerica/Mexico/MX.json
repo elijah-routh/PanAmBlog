@@ -1,8 +1,11 @@
 {
   "title": "Mexico",
-  "description": "Description coming soon.",
+  "description": "Mexico Description coming soon.",
   "photosByCorner": {
-    "top-left": null,
+    "top-left": {
+      "src": "images/CountryPictures/Arch_Los_Cabos.jpg",
+      "alt": "Natural rock arch at Los Cabos"
+    },
     "top-right": null,
     "bottom-left": null,
     "bottom-right": null
