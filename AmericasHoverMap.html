@@ -10,7 +10,52 @@
   <script src="js/bootstrap.bundle.min.js"></script>
   <script src="js/svg-political-map.js"></script>
   <style>
-    body { background-color: #f4f7fb; }
+    /* Stylized ocean: full-page depth gradient + soft light + faint wave bands */
+    body.americas-map-page {
+      margin: 0;
+      min-height: 100vh;
+      color: #0f172a;
+      background-color: #2c5f72;
+      background-image:
+        repeating-linear-gradient(
+          100deg,
+          transparent 0,
+          transparent 14px,
+          rgba(255, 255, 255, 0.028) 14px,
+          rgba(255, 255, 255, 0.028) 28px
+        ),
+        radial-gradient(ellipse 100% 70% at 50% -15%, rgba(186, 230, 253, 0.55), transparent 58%),
+        radial-gradient(ellipse 55% 45% at 95% 35%, rgba(125, 211, 252, 0.18), transparent 52%),
+        radial-gradient(ellipse 50% 40% at 8% 65%, rgba(34, 120, 150, 0.35), transparent 50%),
+        radial-gradient(ellipse 70% 55% at 50% 110%, rgba(15, 45, 62, 0.45), transparent 55%),
+        linear-gradient(
+          168deg,
+          #9ecdd8 0%,
+          #6eb0c4 18%,
+          #4a8fa8 42%,
+          #357891 62%,
+          #2a5f72 82%,
+          #1e4a5c 100%
+        );
+      background-attachment: fixed;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      body.americas-map-page { background-attachment: scroll; }
+    }
+    .americas-map-page .page-hero h1 {
+      color: #f0f9fc;
+      text-shadow: 0 1px 3px rgba(15, 23, 42, 0.35);
+      letter-spacing: -0.02em;
+    }
+    .americas-map-page .page-hero .hero-lead {
+      color: rgba(240, 249, 252, 0.88) !important;
+      text-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
+    }
+    .americas-map-page .panel-card {
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      background: rgba(255, 255, 255, 0.97);
+      box-shadow: 0 8px 32px rgba(15, 45, 62, 0.12), 0 2px 8px rgba(15, 45, 62, 0.06);
+    }
     .map-object-wrap {
       position: relative;
     }
@@ -54,17 +99,17 @@
     .corner-slot--br { bottom: 8px; right: 8px; }
   </style>
 </head>
-<body>
+<body class="americas-map-page">
   <div class="container py-4">
-    <div class="row mb-3">
+    <div class="row mb-3 page-hero">
       <div class="col">
         <h1 class="h3 mb-1">Americas Map</h1>
-        <p class="text-muted small mb-0">Click the Caribbean highlight or any country to zoom. Click ocean to reset.</p>
+        <p class="text-muted small mb-0 hero-lead">Click the Caribbean highlight or any country to zoom. Click ocean to reset.</p>
       </div>
     </div>
     <div class="row g-3">
       <div class="col-md-4">
-        <div class="card shadow-sm h-100">
+        <div class="card shadow-sm h-100 panel-card">
           <div class="card-body">
             <h2 class="card-title h6 text-uppercase text-muted mb-2">Country Info</h2>
             <p id="country-readout" class="fw-semibold mb-2">Hover a country...</p>
@@ -73,7 +118,7 @@
         </div>
       </div>
       <div class="col-md-8">
-        <div class="card shadow-sm h-100 map-card">
+        <div class="card shadow-sm h-100 map-card panel-card">
           <div class="card-body p-0 map-object-wrap">
             <object id="map-object" data="images/SVG/americas-political.svg" type="image/svg+xml" aria-label="Americas map"></object>
             <div id="map-corner-photos" class="map-corner-photos" aria-hidden="true">
