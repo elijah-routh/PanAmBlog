@@ -56,6 +56,10 @@
       background: rgba(255, 255, 255, 0.97);
       box-shadow: 0 8px 32px rgba(15, 45, 62, 0.12), 0 2px 8px rgba(15, 45, 62, 0.06);
     }
+    .navbar-brand img {
+        height: 40px;   /* adjust as needed */
+        width: auto;    /* keeps original proportions */
+    }
     .map-object-wrap {
       position: relative;
     }
@@ -100,6 +104,37 @@
   </style>
 </head>
 <body class="americas-map-page">
+  <nav class="navbar navbar-expand-lg navbar-dark" style="background: rgba(15,45,62,0.85); backdrop-filter: blur(6px);">
+    <div class="container">
+        
+      <!-- Logo + Brand -->
+      <a class="navbar-brand d-flex align-items-center" href="#">
+      <img src="images/Icons/Crayon-Earth-pin.png" alt="Logo" class="me-2">
+      <span>My Profile</span>
+      </a>
+
+      <!-- Mobile Toggle -->
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+      <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <!-- Nav Links -->
+      <div class="collapse navbar-collapse" id="mainNav">
+      <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+          <a class="nav-link active" href="#">Map</a>
+          </li>
+          <li class="nav-item">
+          <a class="nav-link" href="/Profile.html">Profile</a>
+          </li>
+          <li class="nav-item">
+          <a class="nav-link" href="#">Settings</a>
+          </li>
+      </ul>
+      </div>
+
+    </div>
+  </nav>
   <div class="container py-4">
     <div class="row mb-3 page-hero">
       <div class="col">
