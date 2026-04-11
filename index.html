@@ -101,6 +101,25 @@
     .corner-slot--tr { top: 8px; right: 8px; }
     .corner-slot--bl { bottom: 8px; left: 8px; }
     .corner-slot--br { bottom: 8px; right: 8px; }
+    .map-toolbar {
+      border-top: 1px solid rgba(15, 23, 42, 0.08);
+      background: rgba(248, 250, 252, 0.92);
+      padding: 10px 12px;
+    }
+    .map-toolbar .form-label {
+      font-size: 0.72rem;
+      margin-bottom: 0.25rem;
+      text-transform: uppercase;
+      color: #475569;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .map-toolbar .toolbar-help {
+      font-size: 0.78rem;
+      color: #64748b;
+      margin-top: 6px;
+      margin-bottom: 0;
+    }
   </style>
 </head>
 <body class="americas-map-page">
@@ -146,15 +165,49 @@
       <div class="col-md-4">
         <div class="card shadow-sm h-100 panel-card">
           <div class="card-body">
-            <h2 class="card-title h6 text-uppercase text-muted mb-2">Country Info</h2>
-            <p id="country-readout" class="fw-semibold mb-2">Hover a country...</p>
-            <p id="country-details" class="mb-0 small text-secondary">Move your cursor over the map to display country information here.</p>
-            <hr class="my-3">
-            <h3 class="h6 text-uppercase text-muted mb-2">Backpacking Pin</h3>
-            <p id="pin-readout" class="fw-semibold mb-2">No pin selected</p>
-            <p id="pin-details" class="mb-2 small text-secondary">Click a pin to see backpacking notes.</p>
-            <div id="pin-photo" class="d-none">
-              <img id="pin-photo-img" class="img-fluid rounded" src="" alt="">
+            <div id="map-info-panel">
+              <div id="country-info-section">
+                <h2 class="card-title h6 text-uppercase text-muted mb-2">Country Info</h2>
+                <p id="country-readout" class="fw-semibold mb-2">Hover a country...</p>
+                <p id="country-details" class="mb-0 small text-secondary">Move your cursor over the map to display country information here.</p>
+              </div>
+              <div id="backpacking-info-section" class="d-none">
+                <h3 class="h6 text-uppercase text-muted mb-2">Backpacking Pin</h3>
+                <p id="pin-readout" class="fw-semibold mb-2">No pin selected</p>
+                <p id="pin-details" class="mb-2 small text-secondary">Click a pin to see backpacking notes.</p>
+                <div id="pin-photo" class="d-none">
+                  <img id="pin-photo-img" class="img-fluid rounded" src="" alt="">
+                </div>
+              </div>
+            </div>
+            <div id="user-pin-panel" class="d-none">
+              <h3 class="h6 text-uppercase text-muted mb-2">Your Pin</h3>
+              <p id="user-pin-readout" class="fw-semibold mb-2">No custom pin selected</p>
+              <p id="user-pin-details" class="mb-2 small text-secondary">Select a custom pin to view details.</p>
+              <div id="user-pin-view-mode">
+                <p class="small text-muted text-uppercase mb-1">Name</p>
+                <p id="user-pin-view-name" class="mb-2">-</p>
+                <p class="small text-muted text-uppercase mb-1">Notes</p>
+                <p id="user-pin-view-description" class="mb-3">No notes yet.</p>
+                <div class="d-grid gap-2 d-sm-flex">
+                  <button id="edit-user-pin-btn" class="btn btn-sm btn-primary" type="button">Edit</button>
+                  <button id="remove-user-pin-btn" class="btn btn-sm btn-outline-danger" type="button">Delete Pin</button>
+                </div>
+              </div>
+              <div id="user-pin-edit-mode" class="d-none">
+                <div class="mb-2">
+                  <label for="user-pin-name" class="form-label">Pin Name</label>
+                  <input id="user-pin-name" class="form-control form-control-sm" type="text" maxlength="80" placeholder="Name your pin">
+                </div>
+                <div class="mb-2">
+                  <label for="user-pin-description" class="form-label">Pin Notes</label>
+                  <textarea id="user-pin-description" class="form-control form-control-sm" rows="3" placeholder="Add details for this pin"></textarea>
+                </div>
+                <div class="d-grid gap-2 d-sm-flex">
+                  <button id="save-user-pin-btn" class="btn btn-sm btn-primary" type="button">Save</button>
+                  <button id="cancel-user-pin-edit-btn" class="btn btn-sm btn-outline-secondary" type="button">Cancel</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -170,19 +223,80 @@
               <div class="corner-slot corner-slot--br" data-corner="bottom-right"></div>
             </div>
           </div>
+          <div class="map-toolbar">
+            <div class="d-flex flex-wrap gap-2">
+              <button id="arm-user-pin-btn" class="btn btn-sm btn-primary" type="button">Add Pin</button>
+            </div>
+            <p id="map-toolbar-help" class="toolbar-help mb-0 mt-2">Click Add Pin, then click anywhere on the map to place it.</p>
+          </div>
         </div>
       </div>
     </div>
   </div>
   <script>
     (function () {
+      var USER_PINS_STORAGE_KEY = "panam-user-pins-v1";
       var pinReadoutEl = document.getElementById("pin-readout");
       var pinDetailsEl = document.getElementById("pin-details");
       var pinPhotoWrapEl = document.getElementById("pin-photo");
       var pinPhotoImgEl = document.getElementById("pin-photo-img");
+      var mapInfoPanelEl = document.getElementById("map-info-panel");
+      var countryInfoSectionEl = document.getElementById("country-info-section");
+      var backpackingInfoSectionEl = document.getElementById("backpacking-info-section");
+      var userPinPanelEl = document.getElementById("user-pin-panel");
+      var userPinReadoutEl = document.getElementById("user-pin-readout");
+      var userPinDetailsEl = document.getElementById("user-pin-details");
+      var userPinViewModeEl = document.getElementById("user-pin-view-mode");
+      var userPinEditModeEl = document.getElementById("user-pin-edit-mode");
+      var userPinViewNameEl = document.getElementById("user-pin-view-name");
+      var userPinViewDescriptionEl = document.getElementById("user-pin-view-description");
+      var editUserPinBtnEl = document.getElementById("edit-user-pin-btn");
+      var userPinNameEl = document.getElementById("user-pin-name");
+      var userPinDescriptionEl = document.getElementById("user-pin-description");
+      var armUserPinBtnEl = document.getElementById("arm-user-pin-btn");
+      var saveUserPinBtnEl = document.getElementById("save-user-pin-btn");
+      var cancelUserPinEditBtnEl = document.getElementById("cancel-user-pin-edit-btn");
+      var removeUserPinBtnEl = document.getElementById("remove-user-pin-btn");
+      var toolbarHelpEl = document.getElementById("map-toolbar-help");
+      var selectedUserPinId = null;
+      var selectedUserPinData = null;
+      var userPinEditMode = false;
+
+      function showMapInfoMode(view) {
+        mapInfoPanelEl.classList.remove("d-none");
+        userPinPanelEl.classList.add("d-none");
+        if (view === "backpacking") {
+          countryInfoSectionEl.classList.add("d-none");
+          backpackingInfoSectionEl.classList.remove("d-none");
+          return;
+        }
+        backpackingInfoSectionEl.classList.add("d-none");
+        countryInfoSectionEl.classList.remove("d-none");
+      }
+
+      function persistUserPins(pins) {
+        try {
+          localStorage.setItem(USER_PINS_STORAGE_KEY, JSON.stringify(Array.isArray(pins) ? pins : []));
+        } catch (e) {
+          // Ignore quota/storage errors; map interaction should still work.
+        }
+      }
+
+      function readStoredUserPins() {
+        try {
+          var raw = localStorage.getItem(USER_PINS_STORAGE_KEY);
+          if (!raw) return [];
+          var parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          return [];
+        }
+      }
 
       function renderPinDetails(spot) {
+        if (selectedUserPinId) return;
         if (!spot) {
+          showMapInfoMode("country");
           pinReadoutEl.textContent = "No pin selected";
           pinDetailsEl.textContent = "Click a pin to see backpacking notes.";
           pinPhotoImgEl.removeAttribute("src");
@@ -190,6 +304,7 @@
           pinPhotoWrapEl.classList.add("d-none");
           return;
         }
+        showMapInfoMode("backpacking");
         pinReadoutEl.textContent = spot.name || "Selected Pin";
         var summary = typeof spot.summary === "string" ? spot.summary.trim() : "";
         var description = typeof spot.description === "string" ? spot.description.trim() : "";
@@ -208,9 +323,41 @@
         }
       }
 
+      function renderUserPinDetails(pin) {
+        if (!pin) {
+          selectedUserPinId = null;
+          selectedUserPinData = null;
+          userPinEditMode = false;
+          showMapInfoMode("country");
+          userPinReadoutEl.textContent = "No custom pin selected";
+          userPinDetailsEl.textContent = "Select a custom pin to view details.";
+          userPinViewNameEl.textContent = "-";
+          userPinViewDescriptionEl.textContent = "No notes yet.";
+          userPinNameEl.value = "";
+          userPinDescriptionEl.value = "";
+          userPinViewModeEl.classList.remove("d-none");
+          userPinEditModeEl.classList.add("d-none");
+          return;
+        }
+        selectedUserPinId = pin.id || null;
+        selectedUserPinData = pin;
+        userPinEditMode = false;
+        mapInfoPanelEl.classList.add("d-none");
+        userPinPanelEl.classList.remove("d-none");
+        userPinReadoutEl.textContent = pin.name || "Custom Pin";
+        userPinDetailsEl.textContent = "Custom pin selected.";
+        userPinViewNameEl.textContent = pin.name || "Custom Pin";
+        userPinViewDescriptionEl.textContent = pin.description || "No notes yet.";
+        userPinNameEl.value = pin.name || "";
+        userPinDescriptionEl.value = pin.description || "";
+        userPinViewModeEl.classList.remove("d-none");
+        userPinEditModeEl.classList.add("d-none");
+      }
+
       var map = SvgPoliticalMap.createController({
         detailsBase: "data/americas-map",
         detailsSubdir: "country-details",
+        territoryCsvUrl: "data/Territory Data(Sheet1).csv",
         readoutEl: document.getElementById("country-readout"),
         detailsEl: document.getElementById("country-details"),
         objectEl: document.getElementById("map-object"),
@@ -226,9 +373,96 @@
           noRegionsMessage: "No country paths in SVG.",
         },
         onPinSelect: renderPinDetails,
+        onUserPinSelect: renderUserPinDetails,
+        onUserPinsChange: persistUserPins,
+        onUserPinPlacementChange: function (armed) {
+          if (armed) {
+            armUserPinBtnEl.textContent = "Cancel Add Pin";
+            armUserPinBtnEl.classList.remove("btn-primary");
+            armUserPinBtnEl.classList.add("btn-warning");
+            toolbarHelpEl.textContent = "Click anywhere on the map to place your new pin.";
+          } else {
+            armUserPinBtnEl.textContent = "Add Pin";
+            armUserPinBtnEl.classList.remove("btn-warning");
+            armUserPinBtnEl.classList.add("btn-primary");
+            toolbarHelpEl.textContent = "Click Add Pin, then click anywhere on the map to place it.";
+          }
+        },
       });
       renderPinDetails(null);
+      renderUserPinDetails(null);
       map.startObjectEmbed();
+
+      map.setUserPinDraft({
+        name: "Custom Pin",
+        icon: { src: "images/Icons/backpack-pin.png", width: 26, height: 26, anchorX: 13, anchorY: 26 },
+      });
+
+      armUserPinBtnEl.addEventListener("click", function () {
+        map.setUserPinPlacementArmed(!map.getUserPinPlacementArmed());
+      });
+
+      editUserPinBtnEl.addEventListener("click", function () {
+        if (!selectedUserPinData) return;
+        userPinEditMode = true;
+        userPinNameEl.value = selectedUserPinData.name || "";
+        userPinDescriptionEl.value = selectedUserPinData.description || "";
+        userPinViewModeEl.classList.add("d-none");
+        userPinEditModeEl.classList.remove("d-none");
+        userPinDetailsEl.textContent = "Editing mode enabled.";
+      });
+
+      saveUserPinBtnEl.addEventListener("click", function () {
+        if (!selectedUserPinId) return;
+        var updated = map.updateUserPin(selectedUserPinId, {
+          name: userPinNameEl.value || "Custom Pin",
+          description: userPinDescriptionEl.value || "",
+        });
+        if (updated) {
+          selectedUserPinData = updated;
+          userPinEditMode = false;
+          userPinReadoutEl.textContent = updated.name || "Custom Pin";
+          userPinViewNameEl.textContent = updated.name || "Custom Pin";
+          userPinViewDescriptionEl.textContent = updated.description || "No notes yet.";
+          userPinDetailsEl.textContent = "Custom pin selected.";
+          userPinViewModeEl.classList.remove("d-none");
+          userPinEditModeEl.classList.add("d-none");
+        }
+      });
+
+      cancelUserPinEditBtnEl.addEventListener("click", function () {
+        if (!selectedUserPinData) return;
+        userPinEditMode = false;
+        userPinNameEl.value = selectedUserPinData.name || "";
+        userPinDescriptionEl.value = selectedUserPinData.description || "";
+        userPinDetailsEl.textContent = "Custom pin selected.";
+        userPinViewModeEl.classList.remove("d-none");
+        userPinEditModeEl.classList.add("d-none");
+      });
+
+      removeUserPinBtnEl.addEventListener("click", function () {
+        if (!selectedUserPinId) return;
+        map.selectUserPin(selectedUserPinId);
+        map.removeSelectedUserPin();
+      });
+
+      window.addEventListener("keydown", function (ev) {
+        if (ev.key !== "Escape") return;
+        if (userPinEditMode && selectedUserPinData) {
+          userPinEditMode = false;
+          userPinNameEl.value = selectedUserPinData.name || "";
+          userPinDescriptionEl.value = selectedUserPinData.description || "";
+          userPinDetailsEl.textContent = "Custom pin selected.";
+          userPinViewModeEl.classList.remove("d-none");
+          userPinEditModeEl.classList.add("d-none");
+          return;
+        }
+        if (map.getUserPinPlacementArmed()) map.setUserPinPlacementArmed(false);
+      });
+
+      window.setTimeout(function () {
+        map.loadUserPins(readStoredUserPins());
+      }, 300);
     })();
   </script>
 </body>

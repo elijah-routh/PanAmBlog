@@ -13,6 +13,7 @@
   var SVG_NS = "http://www.w3.org/2000/svg";
   var XLINK_NS = "http://www.w3.org/1999/xlink";
   var MAP_PIN_LAYER_ID = "map-pins";
+  var MAP_USER_PIN_LAYER_ID = "map-user-pins";
   var FALLBACK_PIN_ICON_SRC =
     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ff7043' stroke='%230e1a2e' stroke-width='1.5' d='M12 1C7.03 1 3 5.03 3 10c0 6.25 7.08 12.39 8.52 13.57a.75.75 0 0 0 .96 0C13.92 22.39 21 16.25 21 10c0-4.97-4.03-9-9-9z'/%3E%3Ccircle cx='12' cy='10' r='3.2' fill='white'/%3E%3C/svg%3E";
   var MAP_PROJECTION = {
@@ -22,6 +23,25 @@
     minX: -0.9827737557861096,
     maxY: 1.1924636628838035,
     scale: 364.50551960372627,
+  };
+  var SVG_ID_TO_TERRITORY_NAME = {
+    AG: "Antigua and Barbuda",
+    BL: "Saint Barthélemy",
+    CW: "Curaçao",
+    DO: "Dominican Republic",
+    FK: "Falkland Islands",
+    KN: "Saint Kitts and Nevis",
+    KY: "Cayman Islands",
+    MF: "Saint Martin",
+    PM: "Saint Pierre and Miquelon",
+    SX: "Saint Martin",
+    TC: "Turks and Caicos Islands",
+    US_ALASKA: "United States",
+    US_CONTIGUOUS: "United States",
+    US_HAWAII: "United States",
+    VC: "Saint Vincent and the Grenadines",
+    VG: "British Virgin Islands",
+    VI: "U.S. Virgin Islands",
   };
 
   function degToRad(deg) {
@@ -68,6 +88,75 @@
     } catch (e) {
       return src;
     }
+  }
+
+  function normalizeTerritoryNameKey(name) {
+    if (typeof name !== "string") return "";
+    var normalized = name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/&/g, " and ")
+      .replace(/[^a-z0-9]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return normalized;
+  }
+
+  function parseCsvRecords(csvText) {
+    var rows = [];
+    var row = [];
+    var cell = "";
+    var i = 0;
+    var inQuotes = false;
+    while (i < csvText.length) {
+      var ch = csvText[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (csvText[i + 1] === '"') {
+            cell += '"';
+            i += 2;
+            continue;
+          }
+          inQuotes = false;
+          i += 1;
+          continue;
+        }
+        cell += ch;
+        i += 1;
+        continue;
+      }
+      if (ch === '"') {
+        inQuotes = true;
+        i += 1;
+        continue;
+      }
+      if (ch === ",") {
+        row.push(cell);
+        cell = "";
+        i += 1;
+        continue;
+      }
+      if (ch === "\r") {
+        i += 1;
+        continue;
+      }
+      if (ch === "\n") {
+        row.push(cell);
+        rows.push(row);
+        row = [];
+        cell = "";
+        i += 1;
+        continue;
+      }
+      cell += ch;
+      i += 1;
+    }
+    if (cell.length || row.length) {
+      row.push(cell);
+      rows.push(row);
+    }
+    return rows;
   }
 
   /** CSS injected into the SVG for hover/selection (Americas defaults; pass injectStyles: null to skip). */
@@ -131,6 +220,9 @@
    * @param {string} [userCfg.mapHotspotGuard] - closest() guard on background click, default ".map-hotspot"
    * @param {string|null} [userCfg.injectStyles] - CSS text appended to SVG; null skips (supply your own stylesheet)
    * @param {object} [userCfg.strings] - Overrides for DEFAULT_STRINGS (e.g. emptyHoverTitle: "Hover a state...")
+   * @param {Function} [userCfg.onUserPinSelect] - Callback when a custom user pin is selected (or null)
+   * @param {Function} [userCfg.onUserPinsChange] - Callback after custom user pins are added/removed
+   * @param {Function} [userCfg.onUserPinPlacementChange] - Callback when placement mode is toggled
    * @returns {object} Controller API
    */
   function createController(userCfg) {
@@ -154,20 +246,38 @@
       mapHotspotGuard: userCfg.mapHotspotGuard || ".map-hotspot",
       objectEl: userCfg.objectEl,
       svgFetchUrl: userCfg.svgFetchUrl,
+      territoryCsvUrl: typeof userCfg.territoryCsvUrl === "string" ? userCfg.territoryCsvUrl : "",
       injectStyles: resolvedInjectStyles,
       defaultPinIconSrc: userCfg.defaultPinIconSrc || FALLBACK_PIN_ICON_SRC,
       onPinSelect: typeof userCfg.onPinSelect === "function" ? userCfg.onPinSelect : null,
+      onUserPinSelect: typeof userCfg.onUserPinSelect === "function" ? userCfg.onUserPinSelect : null,
+      onUserPinsChange: typeof userCfg.onUserPinsChange === "function" ? userCfg.onUserPinsChange : null,
+      onUserPinPlacementChange:
+        typeof userCfg.onUserPinPlacementChange === "function" ? userCfg.onUserPinPlacementChange : null,
     };
     var strings = Object.assign({}, DEFAULT_STRINGS, userCfg.strings || {});
     var regionSel = "." + cfg.regionClass;
 
     var countryDetailsCache = new Map();
     var detailsPathById = null;
+    var territoryDescriptionByName = null;
     var activeSvgRoot = null;
     var activePinLayer = null;
     var activePinById = new Map();
     var activeSelectedPinId = null;
     var activePinCountryId = null;
+    var activeUserPinLayer = null;
+    var activeUserPinById = new Map();
+    var activeSelectedUserPinId = null;
+    var userPinDraftName = "";
+    var userPinDraftIcon = {
+      src: cfg.defaultPinIconSrc,
+      width: 26,
+      height: 26,
+      anchorX: 13,
+      anchorY: 26,
+    };
+    var userPinPlacementArmed = false;
 
     function getReadout() {
       return cfg.readoutEl;
@@ -221,6 +331,85 @@
       return detailsPathById;
     }
 
+    async function fetchTerritoryDescriptionIndex() {
+      if (territoryDescriptionByName !== null) return territoryDescriptionByName;
+      if (!cfg.territoryCsvUrl) {
+        territoryDescriptionByName = {};
+        return territoryDescriptionByName;
+      }
+      try {
+        var response = await fetch(cfg.territoryCsvUrl, { cache: "force-cache" });
+        if (!response.ok) {
+          territoryDescriptionByName = {};
+          return territoryDescriptionByName;
+        }
+        var buffer = await response.arrayBuffer();
+        var utf8Text = "";
+        var latin1Text = "";
+        try {
+          utf8Text = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+        } catch (utfErr) {
+          utf8Text = "";
+        }
+        try {
+          latin1Text = new TextDecoder("windows-1252").decode(buffer);
+        } catch (latinErr) {
+          latin1Text = "";
+        }
+        var chosenText = utf8Text || latin1Text;
+        if (!chosenText) {
+          territoryDescriptionByName = {};
+          return territoryDescriptionByName;
+        }
+        var rows = parseCsvRecords(chosenText);
+        if (!rows.length) {
+          territoryDescriptionByName = {};
+          return territoryDescriptionByName;
+        }
+        var header = rows[0] || [];
+        var countryIdx = -1;
+        var descIdx = -1;
+        header.forEach(function (h, idx) {
+          var key = String(h || "").trim().toLowerCase();
+          if (key === "country") countryIdx = idx;
+          if (key === "description") descIdx = idx;
+        });
+        if (countryIdx < 0 || descIdx < 0) {
+          territoryDescriptionByName = {};
+          return territoryDescriptionByName;
+        }
+        var out = {};
+        rows.slice(1).forEach(function (cols) {
+          if (!Array.isArray(cols)) return;
+          var country = String(cols[countryIdx] || "").trim();
+          var description = String(cols[descIdx] || "").trim();
+          if (!country || !description) return;
+          var normalizedKey = normalizeTerritoryNameKey(country);
+          if (!normalizedKey) return;
+          out[normalizedKey] = description;
+        });
+        territoryDescriptionByName = out;
+        return territoryDescriptionByName;
+      } catch (e) {
+        territoryDescriptionByName = {};
+        return territoryDescriptionByName;
+      }
+    }
+
+    function pickTerritoryDescription(territoryMap, svgId, title, fallbackName) {
+      if (!territoryMap || typeof territoryMap !== "object") return "";
+      var candidates = [];
+      if (svgId && SVG_ID_TO_TERRITORY_NAME[svgId]) candidates.push(SVG_ID_TO_TERRITORY_NAME[svgId]);
+      if (title) candidates.push(title);
+      if (fallbackName) candidates.push(fallbackName);
+      for (var i = 0; i < candidates.length; i += 1) {
+        var normalized = normalizeTerritoryNameKey(candidates[i]);
+        if (!normalized) continue;
+        if (territoryMap[normalized]) return territoryMap[normalized];
+      }
+      return "";
+    }
+
     /** Normalizes one country/region JSON record for the UI. */
     function normalizeCountryDetails(json) {
       var out = {
@@ -272,6 +461,19 @@
       return out;
     }
 
+    function normalizeUserPinIcon(iconLike) {
+      var iconIn = iconLike && typeof iconLike === "object" ? iconLike : {};
+      var iconWidth = Number.isFinite(Number(iconIn.width)) && Number(iconIn.width) > 0 ? Number(iconIn.width) : 26;
+      var iconHeight = Number.isFinite(Number(iconIn.height)) && Number(iconIn.height) > 0 ? Number(iconIn.height) : 26;
+      return {
+        src: typeof iconIn.src === "string" && iconIn.src ? iconIn.src : cfg.defaultPinIconSrc,
+        width: iconWidth,
+        height: iconHeight,
+        anchorX: Number.isFinite(Number(iconIn.anchorX)) ? Number(iconIn.anchorX) : iconWidth / 2,
+        anchorY: Number.isFinite(Number(iconIn.anchorY)) ? Number(iconIn.anchorY) : iconHeight,
+      };
+    }
+
     function shouldSkipDetailFetch(svgId) {
       if (!svgId) return true;
       if (svgId === cfg.hotspotZoomId) return true;
@@ -286,6 +488,7 @@
       if (shouldSkipDetailFetch(svgId)) return { fallback: true };
       if (countryDetailsCache.has(svgId)) return countryDetailsCache.get(svgId);
       var promise = (async function () {
+        var territoryMap = await fetchTerritoryDescriptionIndex();
         async function tryFetch(relPath) {
           try {
             var pathUrl = cfg.detailsBase + "/" + cfg.detailsSubdir + "/" + relPath;
@@ -304,7 +507,15 @@
         }
         if (!raw || typeof raw !== "object") return { fallback: true };
         try {
-          return normalizeCountryDetails(raw);
+          var normalized = normalizeCountryDetails(raw);
+          var territoryDescription = pickTerritoryDescription(
+            territoryMap,
+            svgId,
+            normalized.title,
+            ""
+          );
+          if (territoryDescription) normalized.description = territoryDescription;
+          return normalized;
         } catch (e) {
           return { fallback: true };
         }
@@ -351,6 +562,10 @@
 
     function selectPin(spotId) {
       if (!spotId || !activePinById.has(spotId)) return false;
+      if (activeSelectedUserPinId) {
+        clearUserPinSelection();
+        if (cfg.onUserPinSelect) cfg.onUserPinSelect(null);
+      }
       clearPinSelection();
       var pin = activePinById.get(spotId);
       if (!pin) return false;
@@ -377,6 +592,22 @@
       return activePinLayer;
     }
 
+    function ensureUserPinLayer(svgRoot) {
+      if (!svgRoot) return null;
+      if (activeUserPinLayer && activeUserPinLayer.ownerSVGElement === svgRoot) return activeUserPinLayer;
+      var existing = svgRoot.querySelector("#" + MAP_USER_PIN_LAYER_ID);
+      if (existing) {
+        activeUserPinLayer = existing;
+        return activeUserPinLayer;
+      }
+      var layer = svgRoot.ownerDocument.createElementNS(SVG_NS, "g");
+      layer.setAttribute("id", MAP_USER_PIN_LAYER_ID);
+      layer.setAttribute("class", "map-pin-layer map-user-pin-layer");
+      svgRoot.appendChild(layer);
+      activeUserPinLayer = layer;
+      return activeUserPinLayer;
+    }
+
     function clearPins(options) {
       var opts = options && typeof options === "object" ? options : {};
       clearPinSelection();
@@ -384,6 +615,199 @@
       activePinCountryId = null;
       if (activePinLayer) activePinLayer.innerHTML = "";
       if (!opts.suppressCallback && cfg.onPinSelect) cfg.onPinSelect(null);
+    }
+
+    function emitUserPinsChange() {
+      if (!cfg.onUserPinsChange) return;
+      cfg.onUserPinsChange(exportUserPins());
+    }
+
+    function clearUserPinSelection() {
+      if (!activeSelectedUserPinId) return;
+      var prev = activeUserPinById.get(activeSelectedUserPinId);
+      if (prev) prev.classList.remove("is-selected");
+      activeSelectedUserPinId = null;
+    }
+
+    function selectUserPin(pinId) {
+      if (!pinId || !activeUserPinById.has(pinId)) return false;
+      clearPinSelection();
+      clearUserPinSelection();
+      var pin = activeUserPinById.get(pinId);
+      if (!pin) return false;
+      pin.classList.add("is-selected");
+      if (pin.parentNode) pin.parentNode.appendChild(pin);
+      activeSelectedUserPinId = pinId;
+      if (cfg.onUserPinSelect) cfg.onUserPinSelect(pin.__userPinData || null);
+      return true;
+    }
+
+    function renderSingleUserPin(pinData) {
+      if (!activeSvgRoot || !pinData || !pinData.id) return null;
+      var layer = ensureUserPinLayer(activeSvgRoot);
+      if (!layer) return null;
+
+      var icon = normalizeUserPinIcon(pinData.icon);
+      var iconHref = toAbsoluteAssetUrl(icon.src);
+      var pin = activeSvgRoot.ownerDocument.createElementNS(SVG_NS, "g");
+      pin.setAttribute("class", "map-pin map-user-pin");
+      pin.setAttribute("data-user-pin-id", String(pinData.id));
+      pin.setAttribute("tabindex", "0");
+      pin.setAttribute("role", "button");
+      pin.setAttribute("aria-label", pinData.name || pinData.id);
+      pin.setAttribute("transform", "translate(" + Number(pinData.x).toFixed(2) + " " + Number(pinData.y).toFixed(2) + ")");
+      pin.__userPinData = {
+        id: String(pinData.id),
+        name: pinData.name || "Custom Pin",
+        description: typeof pinData.description === "string" ? pinData.description : "",
+        x: Number(pinData.x),
+        y: Number(pinData.y),
+        icon: icon,
+      };
+
+      var title = activeSvgRoot.ownerDocument.createElementNS(SVG_NS, "title");
+      title.textContent = pinData.name || "Custom Pin";
+      pin.appendChild(title);
+
+      var image = activeSvgRoot.ownerDocument.createElementNS(SVG_NS, "image");
+      image.setAttribute("x", String(-icon.anchorX));
+      image.setAttribute("y", String(-icon.anchorY));
+      image.setAttribute("width", String(icon.width));
+      image.setAttribute("height", String(icon.height));
+      image.setAttribute("href", iconHref);
+      image.setAttributeNS(XLINK_NS, "xlink:href", iconHref);
+      pin.appendChild(image);
+
+      pin.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        selectUserPin(pinData.id);
+      });
+      pin.addEventListener("keydown", function (ev) {
+        if (ev.key !== "Enter" && ev.key !== " ") return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        selectUserPin(pinData.id);
+      });
+
+      activeUserPinById.set(pinData.id, pin);
+      layer.appendChild(pin);
+      return pin;
+    }
+
+    function addUserPinAtSvgPoint(svgX, svgY, name, icon) {
+      if (!activeSvgRoot || !Number.isFinite(Number(svgX)) || !Number.isFinite(Number(svgY))) return null;
+      var pinData = {
+        id: "user-pin-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8),
+        name: typeof name === "string" && name.trim() ? name.trim() : "Custom Pin",
+        description: "",
+        x: Number(svgX),
+        y: Number(svgY),
+        icon: normalizeUserPinIcon(icon || userPinDraftIcon),
+      };
+      var node = renderSingleUserPin(pinData);
+      if (!node) return null;
+      selectUserPin(pinData.id);
+      emitUserPinsChange();
+      return pinData;
+    }
+
+    function removeSelectedUserPin() {
+      if (!activeSelectedUserPinId) return false;
+      var pinNode = activeUserPinById.get(activeSelectedUserPinId);
+      if (!pinNode) return false;
+      if (pinNode.parentNode) pinNode.parentNode.removeChild(pinNode);
+      activeUserPinById.delete(activeSelectedUserPinId);
+      activeSelectedUserPinId = null;
+      if (cfg.onUserPinSelect) cfg.onUserPinSelect(null);
+      emitUserPinsChange();
+      return true;
+    }
+
+    function clearAllUserPins(options) {
+      var opts = options && typeof options === "object" ? options : {};
+      clearUserPinSelection();
+      activeUserPinById.clear();
+      if (activeUserPinLayer) activeUserPinLayer.innerHTML = "";
+      if (!opts.suppressCallback && cfg.onUserPinSelect) cfg.onUserPinSelect(null);
+      if (!opts.suppressChangeEmit) emitUserPinsChange();
+    }
+
+    function exportUserPins() {
+      var out = [];
+      activeUserPinById.forEach(function (node, id) {
+        if (!node || !node.__userPinData) return;
+        out.push({
+          id: id,
+          name: node.__userPinData.name,
+          description: node.__userPinData.description || "",
+          x: Number(node.__userPinData.x),
+          y: Number(node.__userPinData.y),
+          icon: normalizeUserPinIcon(node.__userPinData.icon),
+        });
+      });
+      return out;
+    }
+
+    function loadUserPins(pins) {
+      clearAllUserPins({ suppressCallback: true, suppressChangeEmit: true });
+      if (!Array.isArray(pins)) {
+        emitUserPinsChange();
+        return;
+      }
+      pins.forEach(function (pin) {
+        if (!pin || typeof pin !== "object") return;
+        if (!Number.isFinite(Number(pin.x)) || !Number.isFinite(Number(pin.y))) return;
+        var id = typeof pin.id === "string" && pin.id ? pin.id : "user-pin-" + Math.random().toString(36).slice(2, 10);
+        renderSingleUserPin({
+          id: id,
+          name: typeof pin.name === "string" && pin.name.trim() ? pin.name.trim() : "Custom Pin",
+          description: typeof pin.description === "string" ? pin.description : "",
+          x: Number(pin.x),
+          y: Number(pin.y),
+          icon: normalizeUserPinIcon(pin.icon),
+        });
+      });
+      if (cfg.onUserPinSelect) cfg.onUserPinSelect(null);
+      emitUserPinsChange();
+    }
+
+    function setUserPinDraft(draft) {
+      var d = draft && typeof draft === "object" ? draft : {};
+      userPinDraftName = typeof d.name === "string" ? d.name.trim() : "";
+      userPinDraftIcon = normalizeUserPinIcon(d.icon || userPinDraftIcon);
+    }
+
+    function setUserPinPlacementArmed(armed) {
+      userPinPlacementArmed = !!armed;
+      if (cfg.onUserPinPlacementChange) cfg.onUserPinPlacementChange(userPinPlacementArmed);
+    }
+
+    function getUserPinPlacementArmed() {
+      return userPinPlacementArmed;
+    }
+
+    function updateUserPin(pinId, patch) {
+      if (!pinId || !activeUserPinById.has(pinId)) return null;
+      var node = activeUserPinById.get(pinId);
+      if (!node || !node.__userPinData) return null;
+      var next = Object.assign({}, node.__userPinData);
+      var p = patch && typeof patch === "object" ? patch : {};
+      if (typeof p.name === "string") {
+        var trimmed = p.name.trim();
+        next.name = trimmed || "Custom Pin";
+      }
+      if (typeof p.description === "string") {
+        next.description = p.description.trim();
+      }
+      node.__userPinData = next;
+      node.setAttribute("aria-label", next.name || next.id);
+      var titleEl = node.querySelector("title");
+      if (titleEl) titleEl.textContent = next.name || next.id;
+      if (activeSelectedUserPinId === pinId && cfg.onUserPinSelect) {
+        cfg.onUserPinSelect(Object.assign({}, next));
+      }
+      emitUserPinsChange();
+      return Object.assign({}, next);
     }
 
     function renderPinsForCountry(countryId, spots) {
@@ -453,7 +877,6 @@
         activePinById.set(spot.id, pin);
         layer.appendChild(pin);
       });
-
       if (shouldPreserveSelectedPin && !selectPin(previousSelectedPinId) && cfg.onPinSelect) {
         cfg.onPinSelect(null);
       }
@@ -472,7 +895,9 @@
       var details = getDetails();
       activeSvgRoot = svgRoot;
       activePinLayer = null;
+      activeUserPinLayer = null;
       clearPins();
+      ensureUserPinLayer(svgRoot);
 
       var selectedZoomId = null;
       var hoveredRegionId = null;
@@ -487,6 +912,10 @@
         svgRoot.setAttribute("viewBox", box.x.toFixed(3) + " " + box.y.toFixed(3) + " " + box.width.toFixed(3) + " " + box.height.toFixed(3));
       }
 
+      function applyViewBox(box) {
+        setViewBox(box);
+      }
+
       function animateViewBox(target, duration) {
         duration = duration || 280;
         var s = svgRoot.viewBox.baseVal;
@@ -495,7 +924,7 @@
         function step(ts) {
           var t = Math.min(1, (ts - t0) / duration);
           var e = 1 - Math.pow(1 - t, 3);
-          setViewBox({
+          applyViewBox({
             x: from.x + (target.x - from.x) * e,
             y: from.y + (target.y - from.y) * e,
             width: from.width + (target.width - from.width) * e,
@@ -562,6 +991,10 @@
         hoveredRegionId = null;
         clearCornerPhotos();
         clearPins();
+        if (activeSelectedUserPinId) {
+          clearUserPinSelection();
+          if (cfg.onUserPinSelect) cfg.onUserPinSelect(null);
+        }
         clearAllRegionHoverClasses();
         svgRoot.querySelectorAll(regionSel + ".is-selected").forEach(function (n) {
           n.classList.remove("is-selected");
@@ -681,6 +1114,7 @@
         });
       }
 
+
       var regions = svgRoot.querySelectorAll(regionSel);
       if (!regions.length) {
         readout.textContent = strings.noRegionsMessage;
@@ -706,6 +1140,10 @@
           return;
         }
         hoveredHotspot = false;
+        if (activeSelectedUserPinId) {
+          clearUserPinSelection();
+          if (cfg.onUserPinSelect) cfg.onUserPinSelect(null);
+        }
         selectedZoomId = c.id;
         clearPins();
         svgRoot.querySelectorAll(regionSel + ".is-selected").forEach(function (n) {
@@ -737,12 +1175,25 @@
       });
 
       svgRoot.addEventListener("click", function (ev) {
+        if (userPinPlacementArmed) {
+          if (ev.target && ev.target.closest && ev.target.closest(".map-user-pin")) return;
+          var svgPoint = svgRoot.createSVGPoint();
+          svgPoint.x = ev.clientX;
+          svgPoint.y = ev.clientY;
+          var mapped = svgPoint.matrixTransform(svgRoot.getScreenCTM().inverse());
+          addUserPinAtSvgPoint(mapped.x, mapped.y, userPinDraftName, userPinDraftIcon);
+          setUserPinPlacementArmed(false);
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+        if (ev.target && ev.target.closest && ev.target.closest(".map-pin")) return;
         if (ev.target.closest && ev.target.closest(cfg.mapHotspotGuard)) return;
         if (!ev.target.closest || !ev.target.closest(regionSel)) {
           resetZoom();
           scheduleSyncReadout();
         }
-      });
+      }, true);
 
       readout.textContent = strings.emptyHoverTitle;
       details.textContent = strings.emptyHoverDetails;
@@ -796,6 +1247,16 @@
       renderPinsForCountry: renderPinsForCountry,
       clearPins: clearPins,
       selectPin: selectPin,
+      addUserPinAtSvgPoint: addUserPinAtSvgPoint,
+      selectUserPin: selectUserPin,
+      removeSelectedUserPin: removeSelectedUserPin,
+      clearAllUserPins: clearAllUserPins,
+      exportUserPins: exportUserPins,
+      loadUserPins: loadUserPins,
+      updateUserPin: updateUserPin,
+      setUserPinDraft: setUserPinDraft,
+      setUserPinPlacementArmed: setUserPinPlacementArmed,
+      getUserPinPlacementArmed: getUserPinPlacementArmed,
       loadCountryDetails: loadCountryDetails,
       normalizeCountryDetails: normalizeCountryDetails,
       applyCountryDetailsToUi: applyCountryDetailsToUi,
